@@ -1,0 +1,44 @@
+name: Sync Holdings from Cloud
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'      # 每 5 分钟
+  workflow_dispatch:             # 允许手动触发
+
+permissions:
+  contents: write                # 允许 push
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch cloud holdings
+        id: fetch
+        run: |
+          CLOUD=$(curl -fsSL https://us-stock-dca-planner.onrender.com/api/load-holdings \
+            | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['holdings']))")
+          echo "cloud=$CLOUD"
+
+          LOCAL=$(jq -c '.' holdings.json 2>/dev/null || echo '{}')
+          echo "local=$LOCAL"
+
+          if [ "$CLOUD" != "$LOCAL" ]; then
+            echo "$CLOUD" | python3 -m json.tool > holdings.json
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "不变，跳过"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push
+        if: steps.fetch.outputs.changed == 'true'
+        run: |
+          git config user.name "Auto Sync"
+          git config user.email "sync@local"
+          git add holdings.json
+          git commit -m "自动同步：来自云端最新持仓"
+          git push
