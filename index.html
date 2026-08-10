@@ -4790,17 +4790,21 @@ function updateHolding(ticker, val) {
   saveHoldings(holdings);
   renderHoldings();
     renderRebalance();
-  // 同步到服务器（供定时推送用）
-  syncHoldings(holdings);
+  // 同步到服务器（供定时推送用，显示确认）
+  syncHoldings(holdings, false);
 }
 
-async function syncHoldings(holdings) {
+async function syncHoldings(holdings, silent) {
   try {
-    await fetch(apiUrl('/api/holdings'), {
+    const resp = await fetch(apiUrl('/api/holdings'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(holdings)
     });
+    const data = await resp.json();
+    if (data.ok && !silent) {
+      showToast('success', '已同步到服务端', '定时邮件将使用最新持仓', 2500);
+    }
   } catch(e) { /* 静默失败，不影响前端 */ }
 }
 
