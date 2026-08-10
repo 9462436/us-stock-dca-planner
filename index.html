@@ -2441,12 +2441,6 @@ input:checked + .toggle-slider:before {
     <div style="overflow-x:auto;max-height:500px;overflow-y:auto;" id="tableContainer"></div>
   </div>
 
-  <!-- Stock Detail Table -->
-  <div class="table-section">
-    <h3 id="stockDetailTitle"><span class="sec-tag tag-purple">DETAIL</span> 各标的持仓明细</h3>
-    <div style="overflow-x:auto;" id="stockDetailTable"></div>
-  </div>
-
   <div class="footer">
     数据源：本地代理 (东方财富+Finnhub) &nbsp;|&nbsp; 每30秒自动刷新 &nbsp;|&nbsp; 上次更新 <span id="lastUpdate">--</span>
   </div>
@@ -4272,77 +4266,7 @@ function renderYearlyTable() {
 }
 
 function renderStockDetail() {
-  const data = getFilteredData();
-  if (data.length === 0) return;
-  const container = document.getElementById('stockDetailTable');
-  if (!container) return;
-
-  const last = data[data.length - 1];
-  const totalValue = last.portfolioValueRMB;
-  const label = currentYear === 20 ? '第 20 年末' : `第 ${currentYear} 年末`;
-
-  document.getElementById('stockDetailTitle').innerHTML = `<span class="sec-tag tag-purple">DETAIL</span> 各标的持仓明细 (${label})`;
-
-  const monthlyInvestRMB = parseFloat(document.getElementById('monthlyInvest') && document.getElementById('monthlyInvest').value) || 7000;
-  const safeFx = (Number.isFinite(fxRate) && fxRate > 0) ? fxRate : 6.75;
-
-  container.innerHTML = `
-  <table>
-    <thead>
-      <tr>
-        <th>标的</th>
-        <th>持仓股数</th>
-        <th>月买入股(股)</th>
-        <th>成本均价($)</th>
-        <th>当前价($)</th>
-        <th>持仓市值(¥)</th>
-        <th>累计股息(¥)</th>
-        <th>占比</th>
-        <th>价格变动</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${last.stocks.map(s => {
-        const pct = totalValue > 0 ? (s.valueRMB / totalValue * 100).toFixed(1) : 0;
-        const avgCost = s.shares > 0 ? (s.costBasisRMB / s.shares / safeFx) : 0;
-        const priceChangePct = avgCost > 0 ? ((s.price - avgCost) / avgCost * 100) : 0;
-        // 月买入股数必须用实时报价算（与顶部价格卡片保持一致），不能用年末模拟价
-        const realPrice = (quotes[s.ticker] && quotes[s.ticker].c > 0) ? quotes[s.ticker].c : s.price;
-        let monthlyBuyShares;
-        if (s.ticker === 'XQQI') {
-          monthlyBuyShares = 5;
-        } else if (s.ticker === 'SPYM') {
-          monthlyBuyShares = 2;
-        } else {
-          // NVDY / AMZY / QDTE：先扣掉 XQQI+SPYM 固定成本，剩余按权重分
-          const xqqiRp = (quotes['XQQI'] && quotes['XQQI'].c > 0) ? quotes['XQQI'].c : 0;
-          const spymRp = (quotes['SPYM'] && quotes['SPYM'].c > 0) ? quotes['SPYM'].c : 0;
-          const fixedCost = 5 * xqqiRp + 2 * spymRp;
-          const totalMonthlyUSD = monthlyInvestRMB / safeFx;
-          const remainingUSD = Math.max(0, totalMonthlyUSD - fixedCost);
-          const varStocks = ['NVDY', 'AMZY', 'QDTE'];
-          const varTotalAlloc = stockConfigs.filter(c => varStocks.includes(c.ticker)).reduce((a, c) => a + c.allocation, 0);
-          const myCfg = stockConfigs.find(c => c.ticker === s.ticker);
-          const varWeight = varTotalAlloc > 0 ? (myCfg.allocation / varTotalAlloc) : 1 / varStocks.length;
-          monthlyBuyShares = realPrice > 0 ? Math.floor(remainingUSD * varWeight / realPrice) : 0;
-        }
-        // 防御：任何环节出现 NaN/Infinity 都回退为 0
-        monthlyBuyShares = Number.isFinite(monthlyBuyShares) ? monthlyBuyShares : 0;
-        return `
-        <tr>
-          <td><strong style="color:${stockConfigs.find(c=>c.ticker===s.ticker).color}">${s.ticker}</strong></td>
-          <td>${s.shares.toLocaleString()}</td>
-          <td>${monthlyBuyShares.toLocaleString()}</td>
-          <td>$${avgCost.toFixed(2)}</td>
-          <td>$${s.price.toFixed(2)}</td>
-          <td>¥${s.valueRMB.toLocaleString('zh-CN',{maximumFractionDigits:0})}</td>
-          <td style="color:var(--green)">¥${s.dividendsRMB.toLocaleString('zh-CN',{maximumFractionDigits:0})}</td>
-          <td>${pct}%</td>
-          <td style="color:${priceChangePct>=0?'#ef4444':'#22c55e'}">${priceChangePct>=0?'+':''}${priceChangePct.toFixed(1)}%</td>
-        </tr>`;
-      }).join('')}
-    </tbody>
-  </table>`;
+  // 已删除：持仓明细表（冗余）
 }
 
 // ============ YEAR SLIDER ============
@@ -4356,7 +4280,6 @@ function setYear(year) {
   renderSummary();
   renderCharts();
   renderYearlyTable();
-  renderStockDetail();
   // 年限变更时重新运行蒙特卡洛
   if (monteCarloResult) {
     setTimeout(() => { try { runMonteCarlo(); } catch(e) {} }, 50);
