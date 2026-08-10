@@ -193,11 +193,31 @@ def fetch_eastmoney(secid):
 
 
 def fetch_fx():
-    url = "https://open.er-api.com/v6/latest/USD"
-    req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data = json.loads(resp.read().decode())
-        return data['rates']['CNY']
+    """从 Yahoo Finance 实时拉取汇率（每分钟更新）"""
+    # 优先 Yahoo Finance（实时，1 分钟延迟）
+    try:
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/USDCNY=X?interval=1m&range=1d"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+            result = data['chart']['result'][0]
+            # 最新价格 = meta.regularMarketPrice
+            price = result['meta'].get('regularMarketPrice')
+            if price:
+                return float(price)
+    except Exception as e:
+        print(f"[FX] Yahoo 失败: {e}")
+
+    # 兜底：exchangerate-api.com（每日更新）
+    try:
+        url = "https://open.er-api.com/v6/latest/USD"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+            return data['rates']['CNY']
+    except Exception as e:
+        print(f"[FX] 兜底也失败: {e}")
+        return 6.75  # 最后兜底
 
 
 def fetch_market_batch(secid_map):
