@@ -262,9 +262,9 @@ _MARKET_DEBUG = True
 
 
 def get_market_data():
-    """获取大盘指数 + 热门板块 + 情绪数据 (3分钟缓存)"""
+    """获取大盘指数 + 热门板块 + 情绪数据 (60秒缓存)"""
     now = time.time()
-    if _market_cache.get('ts') and now - _market_cache['ts'] < 180:
+    if _market_cache.get('ts') and now - _market_cache['ts'] < 60:
         return _market_cache['data']
 
     # 构建 secid 映射（保持 cfg_dict 形式供 wrap_section 使用）
