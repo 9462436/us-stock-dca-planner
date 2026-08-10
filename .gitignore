@@ -8,7 +8,6 @@ __pycache__/
 server.log
 email_log.json
 schedule.json
-holdings.json
 
 # 系统文件
 .DS_Store
