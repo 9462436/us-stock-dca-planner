@@ -576,7 +576,14 @@ def send_email(subject, body):
         print(f"[Email] Resend 失败({err})")
         return False, f'Resend: {err}'
 
-    # 本地：使用传统 SMTP（云端 SMTP 端口被屏蔽）
+    # 仅在本地（未识别为 Render 环境）才走 163 SMTP
+    # Render 容器内 SMTP 端口被屏蔽，但 Resend 已配置时不会走这里
+    # 双重保险：如果检测到 RENDER 环境变量但 Resend 失败，禁止回退到 SMTP
+    if os.environ.get('RENDER'):
+        print("[Email] Render 环境 SMTP 端口被屏蔽，跳过")
+        return False, 'Render 环境无法发送 SMTP 邮件'
+
+    # 本地：使用传统 SMTP
     msg = MIMEText(body, 'plain', 'utf-8')
     msg['Subject'] = Header(subject, 'utf-8')
     msg['From'] = SMTP_USER
