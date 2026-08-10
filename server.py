@@ -586,6 +586,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
 
+    def send_head(self):
+        # index.html 走专门的处理（支持 gzip）
+        path = self.path.split('?')[0]
+        if path in ('/', '/index.html'):
+            try:
+                full_path = os.path.join(STATIC_DIR, 'index.html')
+                with open(full_path, 'rb') as f:
+                    body = f.read()
+                self.send_response(200)
+                ctype = 'text/html; charset=utf-8'
+                self.send_header('Content-Type', ctype)
+                self.send_header('Cache-Control', 'public, max-age=3600')
+                accept_enc = self.headers.get('Accept-Encoding', '')
+                if 'gzip' in accept_enc:
+                    import gzip as _gzip
+                    body = _gzip.compress(body)
+                    self.send_header('Content-Encoding', 'gzip')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                import io
+                return io.BytesIO(body)
+            except OSError:
+                return super().send_head()
+        return super().send_head()
+
     def do_GET(self):
         if self.path == '/api/quotes':
             self.send_json(get_all_quotes())
@@ -620,6 +645,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             })
         else:
             super().do_GET()
+
+    def end_headers(self):
+        # 静态文件（HTML/JS/CSS）：添加缓存头和 gzip 支持
+        path = self.path.split('?')[0]
+        # 缓存策略：HTML 1 小时（开发期短），JS/CSS 1 天
+        if path.endswith('.html') or path == '/' or path == '/index.html':
+            self.send_header('Cache-Control', 'public, max-age=3600')
+        elif path.endswith('.js') or path.endswith('.css'):
+            self.send_header('Cache-Control', 'public, max-age=86400')
+        super().end_headers()
 
     def do_POST(self):
         if self.path == '/api/send-email':
@@ -682,12 +717,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def send_json(self, data):
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Cache-Control', 'no-store')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
+        # 启用 gzip 压缩（体积缩小 70-80%）
+        accept_enc = self.headers.get('Accept-Encoding', '')
+        if 'gzip' in accept_enc:
+            import gzip as _gzip
+            body = _gzip.compress(body)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'public, max-age=60')  # 60s 浏览器缓存
+            self.send_header('Content-Encoding', 'gzip')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+        else:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'public, max-age=60')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
         self.wfile.write(body)
 
     def log_message(self, format, *args):
