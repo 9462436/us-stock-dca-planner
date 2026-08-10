@@ -450,8 +450,11 @@ def generate_report(holdings=None):
 def send_email_via_resend(subject, body):
     """通过 Resend HTTPS API 发送邮件（Render 等云端环境 SMTP 被屏蔽时的替代方案）"""
     url = "https://api.resend.com/emails"
+    # from 必须用 Resend 已验证的域名，@163.com 不归 Resend 管
+    # Free 计划可使用 onboarding@resend.dev 测试发信
+    from_addr = os.environ.get('RESEND_FROM', '美股定投助手 <onboarding@resend.dev>')
     payload = json.dumps({
-        "from": f"美股定投助手 <noreply@{SMTP_USER.split('@')[1]}>",
+        "from": from_addr,
         "to": [EMAIL_TO],
         "subject": subject,
         "text": body,
@@ -462,11 +465,17 @@ def send_email_via_resend(subject, body):
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             result = json.loads(resp.read().decode())
+            print(f"[Resend] HTTP {resp.status}: {json.dumps(result)[:200]}")
             if 'id' in result:
                 return True, None
             return False, result.get('message', '未知错误')
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode()[:300] if e.fp else ''
+        print(f"[Resend] HTTP {e.code}: {err_body}")
+        return False, f'Resend HTTP {e.code}: {err_body}'
     except Exception as e:
-        return False, f'Resend API: {e}'
+        print(f"[Resend] 异常: {e}")
+        return False, f'Resend: {e}'
 
 
 def send_email(subject, body):
@@ -711,3 +720,4 @@ if __name__ == '__main__':
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n服务器已停止")
+
