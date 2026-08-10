@@ -3203,131 +3203,115 @@ function getMonthlyDivs(stock) {
 
 function calculate() {
   const monthlyInvestRMB = parseFloat(document.getElementById('monthlyInvest') && document.getElementById('monthlyInvest').value) || 7000;
-  // 安全汇率兜底：确保全程计算不会因 fxRate 异常而产生 NaN
   const safeFx = (Number.isFinite(fxRate) && fxRate > 0) ? fxRate : 6.75;
   const taxRate = 0.10;
   const totalMonths = 20 * 12;
 
+  // 年化波动率（期权收益型 ETF 15-20%）
+  const annualVol = 0.18;
+  const monthlyVol = annualVol / Math.sqrt(12);
+
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
-  const stocks = stockConfigs.map(s => ({
-    ...s,
-    allocation: totalAlloc > 0 ? s.allocation / totalAlloc : 0.2,
-    shares: 0,
-    costBasis: 0,
-    totalDividends: 0,
-    price: 0,
-    monthlyDiv: getMonthlyDivs(s)
-  }));
+  const stocks = stockConfigs.map(s => {
+    const q = quotes[s.ticker];
+    const px = (q && q.c > 0) ? q.c : 50;
+    // 年化股息率 = 每股股息 × 年频率 ÷ 当前股价
+    const annualDivPerShare = getMonthlyDivs(s) * 12;
+    const divYield = px > 0 ? annualDivPerShare / px : 0.20;
+    // 预期年总回报 = 股息率 − 侵蚀率
+    const annualReturn = divYield - s.erosionRate / 100;
+    return {
+      ...s,
+      allocation: totalAlloc > 0 ? s.allocation / totalAlloc : 0.2,
+      shares: 0, costBasis: 0,
+      totalDividendsEarned: 0,
+      price: px, initialPrice: px,
+      divYield: divYield,
+      monthlyReturn: annualReturn / 12
+    };
+  });
 
   const monthlyData = [];
+  const monthlyNav = [];
   let cumulativeInvestedRMB = 0;
-  let cumulativeDividendsUSD = 0;
+  let rngSeed = 42;
+  const rng = () => { rngSeed = (rngSeed * 16807 + 0) % 2147483647; return rngSeed / 2147483647; };
+  const randn = () => { let u=rng(),v=rng(); return Math.sqrt(-2*Math.log(u||0.0001))*Math.cos(2*Math.PI*v); };
 
   for (let m = 0; m < totalMonths; m++) {
     let totalUSD = monthlyInvestRMB / safeFx;
     let monthInvestedUSD = 0;
 
-    // 初始化价格
-    for (let i = 0; i < stocks.length; i++) {
-      if (stocks[i].price <= 0) {
-        const q = quotes[stocks[i].ticker];
-        stocks[i].price = (q && q.c > 0) ? q.c : 50;
-      }
-    }
-
-    // 固定买入：XQQI 每月固定 5 股，SPYM 每月固定 2 股
+    // 固定买入
     const xqqi = stocks.find(s => s.ticker === 'XQQI');
-    if (xqqi) {
-      const fixCost = 5 * xqqi.price;
-      if (totalUSD >= fixCost) {
-        xqqi.shares += 5;
-        xqqi.costBasis += fixCost;
-        monthInvestedUSD += fixCost;
-        totalUSD -= fixCost;
-      }
+    if (xqqi && totalUSD >= 5 * xqqi.price) {
+      xqqi.shares += 5; xqqi.costBasis += 5 * xqqi.price;
+      monthInvestedUSD += 5 * xqqi.price; totalUSD -= 5 * xqqi.price;
     }
     const spym = stocks.find(s => s.ticker === 'SPYM');
-    if (spym) {
-      const fixCost = 2 * spym.price;
-      if (totalUSD >= fixCost) {
-        spym.shares += 2;
-        spym.costBasis += fixCost;
-        monthInvestedUSD += fixCost;
-        totalUSD -= fixCost;
-      }
+    if (spym && totalUSD >= 2 * spym.price) {
+      spym.shares += 2; spym.costBasis += 2 * spym.price;
+      monthInvestedUSD += 2 * spym.price; totalUSD -= 2 * spym.price;
     }
 
-    // 剩余资金按权重分配给 NVDY / AMZY / QDTE
-    const varStocks = stocks.filter(s => ['NVDY', 'AMZY', 'QDTE'].includes(s.ticker));
-    const varTotalAlloc = varStocks.reduce((a, s) => a + s.allocation, 0);
+    // 权重分配
+    const varStocks = stocks.filter(s => ['NVDY','AMZY','QDTE'].includes(s.ticker));
+    const varTotalAlloc = varStocks.reduce((a,s)=>a+s.allocation,0);
     for (const st of varStocks) {
-      const varWeight = varTotalAlloc > 0 ? st.allocation / varTotalAlloc : 1 / varStocks.length;
-      const allocUSD = totalUSD * varWeight;
-      const canBuy = Math.floor(allocUSD / st.price);
-      if (canBuy > 0) {
-        st.shares += canBuy;
-        st.costBasis += canBuy * st.price;
-        monthInvestedUSD += canBuy * st.price;
-      }
+      const w = varTotalAlloc>0 ? st.allocation/varTotalAlloc : 1/varStocks.length;
+      const canBuy = Math.floor(totalUSD * w / st.price);
+      if (canBuy>0) { st.shares+=canBuy; st.costBasis+=canBuy*st.price; monthInvestedUSD+=canBuy*st.price; }
     }
-
     cumulativeInvestedRMB += monthInvestedUSD * safeFx;
 
-    let monthDividendsUSD = 0;
-    for (let i = 0; i < stocks.length; i++) {
-      const st = stocks[i];
-      const gross = st.shares * st.monthlyDiv;
+    // ===== 股息计算 & 自动再投资 =====
+    for (const st of stocks) {
+      if (st.shares <= 0) continue;
+      const divPerShare = st.price * (st.divYield / 12); // 股息随价格缩放
+      const gross = st.shares * divPerShare;
       const net = gross * (1 - taxRate);
-      st.totalDividends += net;
-      monthDividendsUSD += net;
+      st.totalDividendsEarned += net;
+      // 自动再投资：税后股息买入更多股
+      st.shares += net / st.price;
+      st.costBasis += net;
     }
-    cumulativeDividendsUSD += monthDividendsUSD;
 
-    for (let i = 0; i < stocks.length; i++) {
-      const st = stocks[i];
-      st.price *= (1 - st.erosionRate / 100 / 12);
+    // ===== 价格变动：预期回报 + 随机噪声 =====
+    for (const st of stocks) {
+      const noise = randn() * monthlyVol;
+      st.price *= (1 + st.monthlyReturn + noise);
       if (st.price < 0.01) st.price = 0.01;
     }
 
     let portfolioValueUSD = 0;
-    for (let i = 0; i < stocks.length; i++) {
-      portfolioValueUSD += stocks[i].shares * stocks[i].price;
-    }
-
+    for (const st of stocks) portfolioValueUSD += st.shares * st.price;
     const portfolioValueRMB = portfolioValueUSD * safeFx;
-    const cumulativeDividendsRMB = cumulativeDividendsUSD * safeFx;
-    const totalValueRMB = portfolioValueRMB + cumulativeDividendsRMB;
-    const totalReturnRMB = totalValueRMB - cumulativeInvestedRMB;
-    const roi = cumulativeInvestedRMB > 0 ? (totalReturnRMB / cumulativeInvestedRMB * 100) : 0;
+    const totalValueRMB = portfolioValueRMB;
     const elapsed = m + 1;
-    const annualizedRoi = elapsed > 0 ? (Math.pow(1 + roi/100, 12/elapsed) - 1) * 100 : 0;
+    const years = elapsed / 12;
+    const cagr = cumulativeInvestedRMB>0 ? (Math.pow(totalValueRMB/cumulativeInvestedRMB,1/years)-1)*100 : 0;
+    monthlyNav.push(totalValueRMB);
+
+    let cumulativeDivRMB = 0;
+    for (const st of stocks) cumulativeDivRMB += st.totalDividendsEarned * safeFx;
 
     monthlyData.push({
-      month: elapsed,
-      year: Math.ceil(elapsed / 12),
+      month: elapsed, year: Math.ceil(elapsed/12),
       investedRMB: cumulativeInvestedRMB,
-      portfolioValueRMB: portfolioValueRMB,
-      cumulativeDividendsRMB: cumulativeDividendsRMB,
-      totalValueRMB: totalValueRMB,
-      totalReturnRMB: totalReturnRMB,
-      roi: roi,
-      annualizedRoi: annualizedRoi,
+      portfolioValueRMB, cumulativeDividendsRMB: cumulativeDivRMB,
+      totalValueRMB, totalReturnRMB: totalValueRMB - cumulativeInvestedRMB,
+      roi: cagr, annualizedRoi: cagr, cagr: cagr, months: elapsed, totalReturnPct: (cumulativeInvestedRMB>0 ? (totalReturnRMB/cumulativeInvestedRMB)*100 : 0),
+      monthlyNav: [...monthlyNav],
       stocks: stocks.map(s => ({
-        ticker: s.ticker,
-        shares: s.shares,
-        price: s.price,
-        allocation: s.allocation,
-      valueRMB: s.shares * s.price * safeFx,
-      dividendsRMB: s.totalDividends * safeFx,
-      costBasisRMB: s.costBasis * safeFx
+        ticker: s.ticker, shares: s.shares, price: s.price,
+        valueRMB: s.shares * s.price * safeFx,
+        dividendsRMB: s.totalDividendsEarned * safeFx,
+        costBasisRMB: s.costBasis * safeFx
       }))
     });
   }
-
   return monthlyData;
-}
-
-// ============ RENDER WITH YEAR FILTER ============
+}// ============ RENDER WITH YEAR FILTER ============
 function getFilteredData() {
   if (!projectionData) return [];
   return projectionData.slice(0, currentYear * 12);
@@ -4052,18 +4036,18 @@ function renderSummary() {
 
   const monthlyInvest = parseFloat(document.getElementById('monthlyInvest')?.value) || 7000;
 
-  // ---------- 1. 真实月度收益率序列（排除新增投入） ----------
+  // ---------- 1. 月度收益率序列（扣除新增投入后的纯市场收益） ----------
   const monthlyReturns = [];
   for (let i = 1; i < data.length; i++) {
-    const prevV = data[i-1].portfolioValueRMB;
+    const prevV = data[i-1].totalValueRMB;
     if (prevV <= 0) continue;
-    const portfolioDelta = data[i].portfolioValueRMB - prevV;
-    const marketRet = (portfolioDelta - monthlyInvest) / prevV;
+    // 总资产变化 − 当月新增投入 = 纯市场收益
+    const marketRet = (data[i].totalValueRMB - monthlyInvest - prevV) / prevV;
     monthlyReturns.push(marketRet);
   }
 
-  // ---------- 2. 净值曲线（组合市值 + 累计股息 = 真实总资产净值） ----------
-  const navCurve = data.map(d => d.portfolioValueRMB + d.cumulativeDividendsRMB);
+  // ---------- 2. 净值曲线 = totalValueRMB（股息已再投资，不需额外加） ----------
+  const navCurve = data.map(d => d.totalValueRMB);
 
   // ---------- 3. 最大回撤（基于净值曲线） ----------
   let maxDD = 0, maxDDStart = 0, maxDDEnd = 0;
@@ -4126,7 +4110,7 @@ function renderSummary() {
     <div class="summary-card c-gold">
       <div class="label">${yearLabel}总收益 (含股息)</div>
       <div class="value">¥${(last.totalReturnRMB / 10000).toFixed(1)}万</div>
-      <div class="sub">IRR ${last.roi.toFixed(0)}% · CAGR ${cagr.toFixed(1)}% · 年化 ${last.annualizedRoi.toFixed(1)}%</div>
+      <div class="sub">CAGR ${(last.cagr||cagr).toFixed(1)}% · 股息再投资 · 蒙特卡洛模拟</div>
     </div>
     <div class="summary-card" style="border-left:3px solid ${sharpeColor}">
       <div class="label">夏普比率 (年化)</div>
@@ -4218,8 +4202,8 @@ function renderYearlyTable() {
           <td>${(d.value / 10000).toFixed(2)}万</td>
           <td><strong>${(d.total / 10000).toFixed(2)}万</strong></td>
           <td style="color:${d.netReturn>=0?'#ef4444':'#22c55e'}">${(d.netReturn / 10000).toFixed(2)}万</td>
-          <td style="color:${d.roi>=0?'#ef4444':'#22c55e'}">${d.roi.toFixed(0)}%</td>
-          <td>${d.annRoi.toFixed(1)}%</td>
+          <td style="color:${(d.totalReturnPct||d.roi)>=0?'#ef4444':'#22c55e'}">${(d.totalReturnPct||d.roi).toFixed(0)}%</td>
+          <td>${(d.annRoi||d.cagr).toFixed(1)}%</td>
           <td>${d.shares.toLocaleString()}</td>
         </tr>`;
       }).join('')}
