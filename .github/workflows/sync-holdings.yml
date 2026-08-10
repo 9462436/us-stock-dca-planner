@@ -42,5 +42,6 @@ jobs:
           git add holdings.json
           # 先同步远端最新 commits（避免 push 冲突）
           git pull --rebase --autostash origin main || git pull --rebase origin main
-          git commit -m "自动同步：来自云端最新持仓"
+          # commit 即使无变化也不报错
+          git commit -m "自动同步：来自云端最新持仓" || echo "no changes to commit"
           git push
