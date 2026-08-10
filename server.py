@@ -486,31 +486,25 @@ def send_email(subject, body):
         if ok:
             print(f"[Email] Resend 发送成功")
             return True, None
-        print(f"[Email] Resend 失败({err})，回退 SMTP")
+        # 云端不应该再尝试 SMTP（SMTP 端口被屏蔽），直接返回 Resend 错误
+        print(f"[Email] Resend 失败({err})")
+        return False, f'Resend: {err}'
 
-    # 回退到传统 SMTP
+    # 本地：使用传统 SMTP（云端 SMTP 端口被屏蔽）
     msg = MIMEText(body, 'plain', 'utf-8')
     msg['Subject'] = Header(subject, 'utf-8')
     msg['From'] = SMTP_USER
     msg['To'] = EMAIL_TO
 
     last_error = None
-    for attempt in range(2):  # 云端减少重试次数
+    for attempt in range(2):
         try:
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=12) as server:
                 server.login(SMTP_USER, SMTP_PASS)
                 server.sendmail(SMTP_USER, EMAIL_TO, msg.as_string())
             return True, None
-        except smtplib.SMTPAuthenticationError as e:
+        except smtplib.SMTPAuthenticationError:
             return False, 'SMTP 认证失败，请检查授权码'
-        except OSError as e:
-            err_msg = str(e)
-            # Network unreachable / Connection refused → 云端典型错误
-            if 'unreachable' in err_msg.lower() or 'refused' in err_msg.lower():
-                return False, '云平台未开放 SMTP 端口，请配置 RESEND_API_KEY 环境变量'
-            last_error = err_msg
-            if attempt < 1:
-                time.sleep(1)
         except Exception as e:
             last_error = str(e)
             if attempt < 1:
@@ -720,4 +714,3 @@ if __name__ == '__main__':
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n服务器已停止")
-
