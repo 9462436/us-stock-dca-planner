@@ -140,6 +140,48 @@ def load_schedule():
 def save_schedule(times):
     with open(SCHEDULE_FILE, 'w', encoding='utf-8') as f:
         json.dump({'times': times, 'updated': time.strftime('%Y-%m-%d %H:%M:%S')}, f, ensure_ascii=False, indent=2)
+    # 云端有 GitHub Token 时同步推送，避免本地与云端 schedule 不一致
+    if GITHUB_TOKEN:
+        threading.Thread(target=push_schedule_to_github, args=(times,), daemon=True).start()
+
+
+def push_schedule_to_github(times):
+    """把 schedule.json 同步推送到 GitHub，让 Render 重启后加载相同配置"""
+    import base64
+    url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/schedule.json'
+    headers = {
+        'Authorization': f'Bearer {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'CloudSync/1.0',
+    }
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            current = json.loads(resp.read().decode())
+            sha = current.get('sha', '')
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            sha = ''
+        else:
+            print(f"[GitHub] 获取 schedule SHA 失败: {e.code}")
+            return
+    content_b64 = base64.b64encode(
+        json.dumps({'times': times, 'updated': time.strftime('%Y-%m-%d %H:%M:%S')}, ensure_ascii=False, indent=2).encode('utf-8')
+    ).decode('ascii')
+    body = json.dumps({
+        'message': 'auto-sync: 更新邮件推送时间表',
+        'content': content_b64,
+        'sha': sha,
+        'branch': 'main',
+    }).encode('utf-8')
+    req = urllib.request.Request(url, data=body, headers=headers, method='PUT')
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read().decode())
+            if 'content' in result:
+                print(f"[GitHub] schedule.json 已同步 ✓")
+    except Exception as e:
+        print(f"[GitHub] schedule 推送失败: {e}")
 
 
 # ============ 邮件发送日志 ============
