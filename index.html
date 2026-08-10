@@ -3300,7 +3300,8 @@ function calculate() {
       investedRMB: cumulativeInvestedRMB,
       portfolioValueRMB, cumulativeDividendsRMB: cumulativeDivRMB,
       totalValueRMB, totalReturnRMB: totalValueRMB - cumulativeInvestedRMB,
-      roi: cagr, annualizedRoi: cagr, cagr: cagr, months: elapsed, totalReturnPct: (cumulativeInvestedRMB>0 ? (totalReturnRMB/cumulativeInvestedRMB)*100 : 0),
+      totalReturnPct: (cumulativeInvestedRMB>0 ? ((totalValueRMB - cumulativeInvestedRMB)/cumulativeInvestedRMB)*100 : 0),
+      roi: cagr, annualizedRoi: cagr, cagr: cagr, months: elapsed,
       monthlyNav: [...monthlyNav],
       stocks: stocks.map(s => ({
         ticker: s.ticker, shares: s.shares, price: s.price,
