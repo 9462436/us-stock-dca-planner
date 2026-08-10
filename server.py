@@ -40,7 +40,8 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')  # 云端邮件
 print(f"[Config] RESEND_API_KEY: {'已配置 (' + RESEND_API_KEY[:8] + '...)' if RESEND_API_KEY else '未配置'}")
 
 # 默认定时推送时间（24 小时制）
-DEFAULT_SCHEDULED_TIMES = ['04:00', '08:00', '12:00', '14:00', '21:30']
+# 每半小时 00:00, 00:30, 01:00, ...
+DEFAULT_SCHEDULED_TIMES = [f'{h:02d}:{m:02d}' for h in range(24) for m in (0, 30)]
 SCHEDULE_FILE = os.path.join(STATIC_DIR, 'schedule.json')
 EMAIL_LOG_FILE = os.path.join(STATIC_DIR, 'email_log.json')
 
@@ -696,7 +697,21 @@ if __name__ == '__main__':
     scheduler = threading.Thread(target=scheduler_loop, daemon=True)
     scheduler.start()
     scheduled = load_schedule()
-    print(f"[Scheduler] 定时推送已启动: {', '.join(scheduled)}")
+    print(f"[Scheduler] 定时推送已启动: {', '.join(scheduled[:6])}... (共 {len(scheduled)} 个时间点)")
+
+    # Render 免费版 15 分钟休眠 → 每 14 分钟自 ping 一次保持活跃
+    if os.environ.get('RENDER'):
+        def keep_alive():
+            while True:
+                time.sleep(14 * 60)
+                try:
+                    url = f"http://127.0.0.1:{PORT}/api/fx"
+                    urllib.request.urlopen(url, timeout=5)
+                except Exception:
+                    pass
+        ka = threading.Thread(target=keep_alive, daemon=True)
+        ka.start()
+        print("[KeepAlive] 每 14 分钟自 ping 防休眠")
 
     print(f"\n{'='*50}")
     print(f"  美股定投工具 — 本地代理服务器")
