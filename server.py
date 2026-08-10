@@ -605,6 +605,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'times': load_schedule(), 'default': DEFAULT_SCHEDULED_TIMES})
         elif self.path == '/api/market':
             self.send_json(get_market_data())
+        elif self.path == '/api/load-holdings':
+            # GET 持仓数据（前端启动时拉取，与 server 同源）
+            self.send_json({'holdings': load_holdings()})
         elif self.path == '/api/debug-config':
             # 调试：返回当前关键配置（脱敏）
             self.send_json({
@@ -652,9 +655,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             save_holdings(data)
             print(f"[Holdings] 已同步: {data}")
             self.send_json({'ok': True})
-        elif self.path == '/api/load-holdings':
-            # GET 持仓数据（前端启动时拉取，与 server 同源）
-            self.send_json({'holdings': load_holdings()})
         elif self.path == '/api/schedule':
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
