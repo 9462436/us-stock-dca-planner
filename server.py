@@ -453,9 +453,12 @@ def send_email_via_resend(subject, body):
     # from 必须用 Resend 已验证的域名，@163.com 不归 Resend 管
     # Free 计划可使用 onboarding@resend.dev 测试发信
     from_addr = os.environ.get('RESEND_FROM', '美股定投助手 <onboarding@resend.dev>')
+    # 云端可自定义收件人（解决 onboarding@resend.dev 只能发到注册邮箱的限制）
+    resend_to = os.environ.get('RESEND_TO', '').strip()
+    to_addr = resend_to or EMAIL_TO
     payload = json.dumps({
         "from": from_addr,
-        "to": [EMAIL_TO],
+        "to": [to_addr],
         "subject": subject,
         "text": body,
     }).encode('utf-8')
@@ -605,6 +608,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_json({
                 'resend_configured': bool(RESEND_API_KEY),
                 'resend_prefix': RESEND_API_KEY[:8] + '...' if RESEND_API_KEY else None,
+                'resend_to': os.environ.get('RESEND_TO', ''),
                 'smtp_user': SMTP_USER,
                 'email_to': EMAIL_TO,
                 'port': PORT,
