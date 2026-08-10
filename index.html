@@ -4468,6 +4468,20 @@ function loadHoldings() {
   return stockConfigs.reduce((a, s) => { a[s.ticker] = 0; return a; }, {});
 }
 
+async function loadHoldingsFromServer() {
+  // 云端部署时：服务端 holdings.json 是权威来源（与部署一起持久化）
+  if (window.location.protocol === 'file:') return null;  // 本地 file:// 不查服务端
+  try {
+    const resp = await fetch(apiUrl('/api/load-holdings'), { cache: 'no-store' });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data && data.holdings && typeof data.holdings === 'object') {
+      return data.holdings;
+    }
+  } catch(e) { console.warn('服务端持仓拉取失败:', e.message); }
+  return null;
+}
+
 function saveHoldings(h) {
   try { localStorage.setItem(HOLDINGS_KEY, JSON.stringify(h)); } catch(e) {}
 }
@@ -5244,6 +5258,15 @@ window.addEventListener('themeChanged', applyChartTheme);
       } catch(e) {}
     }
     showToast('info', '已加载本地缓存', '上次刷新时间 ' + new Date(JSON.parse(localStorage.getItem(CACHE_KEY)).ts).toLocaleTimeString('zh-CN'), 3000);
+  }
+
+  // 云端：从服务端 holdings.json 拉取真实持仓（权威来源）
+  const serverHoldings = await loadHoldingsFromServer();
+  if (serverHoldings && Object.values(serverHoldings).some(v => v > 0)) {
+    saveHoldings(serverHoldings);
+    renderHoldings();
+    renderRebalance();
+    console.log('[Holdings] 已从服务端同步持仓:', serverHoldings);
   }
 
   // 首次加载给完整反馈，之后每 30 秒静默刷新（用户感觉不到）

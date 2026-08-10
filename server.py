@@ -652,6 +652,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             save_holdings(data)
             print(f"[Holdings] 已同步: {data}")
             self.send_json({'ok': True})
+        elif self.path == '/api/load-holdings':
+            # GET 持仓数据（前端启动时拉取，与 server 同源）
+            self.send_json({'holdings': load_holdings()})
         elif self.path == '/api/schedule':
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
