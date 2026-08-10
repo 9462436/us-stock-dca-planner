@@ -465,6 +465,7 @@ def send_email_via_resend(subject, body):
     req = urllib.request.Request(url, data=payload)
     req.add_header('Authorization', f'Bearer {RESEND_API_KEY}')
     req.add_header('Content-Type', 'application/json')
+    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             result = json.loads(resp.read().decode())
