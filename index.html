@@ -4736,22 +4736,30 @@ async function emailDailyReport() {
   const now = new Date();
   const subject = `美股持仓日报 · ${now.toLocaleDateString('zh-CN')}`;
 
+  // 15 秒超时，防止卡死
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+
   try {
     const resp = await fetch(apiUrl('/api/send-email'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ report, subject })
+      body: JSON.stringify({ report, subject }),
+      signal: ctrl.signal,
     });
     const data = await resp.json();
+    clearTimeout(timer);
     if (data.ok) {
-      showToast('success', '邮件已发送', '请检查 163 邮箱收件箱');
+      showToast('success', '邮件已发送', '请检查邮箱收件箱');
       btn.textContent = '已发送 ✓';
       setTimeout(() => { btn.textContent = '发送邮件'; btn.disabled = false; }, 3000);
     } else {
       throw new Error(data.error || '发送失败');
     }
   } catch(e) {
-    showToast('error', '邮件发送失败', e.message || '未知错误');
+    clearTimeout(timer);
+    const msg = e.name === 'AbortError' ? '请求超时，云端可能屏蔽了SMTP端口' : (e.message || '未知错误');
+    showToast('error', '邮件发送失败', msg);
     btn.disabled = false;
     btn.textContent = '发送邮件';
   }

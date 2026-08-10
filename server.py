@@ -443,28 +443,69 @@ def generate_report(holdings=None):
     return "\n".join(lines)
 
 
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')  # 云端邮件
+
+
+def send_email_via_resend(subject, body):
+    """通过 Resend HTTPS API 发送邮件（Render 等云端环境 SMTP 被屏蔽时的替代方案）"""
+    url = "https://api.resend.com/emails"
+    payload = json.dumps({
+        "from": f"美股定投助手 <noreply@{SMTP_USER.split('@')[1]}>",
+        "to": [EMAIL_TO],
+        "subject": subject,
+        "text": body,
+    }).encode('utf-8')
+    req = urllib.request.Request(url, data=payload)
+    req.add_header('Authorization', f'Bearer {RESEND_API_KEY}')
+    req.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode())
+            if 'id' in result:
+                return True, None
+            return False, result.get('message', '未知错误')
+    except Exception as e:
+        return False, f'Resend API: {e}'
+
+
 def send_email(subject, body):
-    """通过 163 SMTP 发送邮件（含重试机制）"""
+    """发送邮件：云端优先用 Resend API，本地/回退用 163 SMTP"""
+    # 云端有 Resend API Key 时优先走 HTTPS
+    if RESEND_API_KEY:
+        ok, err = send_email_via_resend(subject, body)
+        if ok:
+            print(f"[Email] Resend 发送成功")
+            return True, None
+        print(f"[Email] Resend 失败({err})，回退 SMTP")
+
+    # 回退到传统 SMTP
     msg = MIMEText(body, 'plain', 'utf-8')
     msg['Subject'] = Header(subject, 'utf-8')
     msg['From'] = SMTP_USER
     msg['To'] = EMAIL_TO
 
     last_error = None
-    for attempt in range(3):
+    for attempt in range(2):  # 云端减少重试次数
         try:
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=12) as server:
                 server.login(SMTP_USER, SMTP_PASS)
                 server.sendmail(SMTP_USER, EMAIL_TO, msg.as_string())
             return True, None
         except smtplib.SMTPAuthenticationError as e:
             return False, 'SMTP 认证失败，请检查授权码'
+        except OSError as e:
+            err_msg = str(e)
+            # Network unreachable / Connection refused → 云端典型错误
+            if 'unreachable' in err_msg.lower() or 'refused' in err_msg.lower():
+                return False, '云平台未开放 SMTP 端口，请配置 RESEND_API_KEY 环境变量'
+            last_error = err_msg
+            if attempt < 1:
+                time.sleep(1)
         except Exception as e:
             last_error = str(e)
-            print(f"[Email] 第 {attempt+1} 次失败: {e}")
-            if attempt < 2:
-                time.sleep(2 ** attempt)  # 指数退避 1s, 2s
-    return False, last_error or '未知错误'
+            if attempt < 1:
+                time.sleep(1)
+    return False, last_error or '邮件发送失败'
 
 
 def scheduler_loop():
