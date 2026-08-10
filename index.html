@@ -2131,6 +2131,7 @@ input:checked + .toggle-slider:before {
         <span style="font-size:10px;color:var(--text-dim);white-space:nowrap;" title="每天 4:00 / 8:00 / 12:00 / 14:00 / 21:30 自动发送">定时推送</span>
         <button class="send-btn" id="sendReportBtn" onclick="copyDailyReport()" disabled>复制日报</button>
         <button class="send-btn" id="dlReportBtn" onclick="downloadDailyReport()" disabled style="background:var(--accent);box-shadow:0 2px 8px rgba(37,99,235,0.25);">下载日报</button>
+        <button class="send-btn" id="dlHoldingsBtn" onclick="downloadHoldingsJson()" disabled style="background:var(--text-dim);box-shadow:none;font-size:11px;padding:8px 12px;">📥 同步到本地</button>
         <button class="send-btn" id="emailBtn" onclick="emailDailyReport()" disabled style="background:var(--green);box-shadow:0 2px 8px rgba(5,150,105,0.25);">发送邮件</button>
       </div>
     </div>
@@ -4680,8 +4681,10 @@ function renderHoldings() {
   const copyBtn = document.getElementById('sendReportBtn');
   const dlBtn = document.getElementById('dlReportBtn');
   const emailBtn = document.getElementById('emailBtn');
+  const dlHoldingsBtn = document.getElementById('dlHoldingsBtn');
   if (copyBtn) { copyBtn.disabled = !hasHoldings; copyBtn.textContent = '复制日报'; }
   if (dlBtn) { dlBtn.disabled = !hasHoldings; dlBtn.textContent = '下载日报'; }
+  if (dlHoldingsBtn) { dlHoldingsBtn.disabled = !hasHoldings; }
   if (emailBtn) { emailBtn.disabled = !hasHoldings; emailBtn.textContent = '发送邮件'; }
 }
 
@@ -4743,6 +4746,26 @@ function downloadDailyReport() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('success', '已下载', `美股持仓日报_${stamp}.txt`);
+}
+
+async function downloadHoldingsJson() {
+  // 从云端拉取最新 holdings.json，下载到本地
+  try {
+    const resp = await fetch(apiUrl('/api/load-holdings'), { cache: 'no-store' });
+    const data = await resp.json();
+    const holdings = data.holdings || {};
+    const text = JSON.stringify(holdings, null, 2);
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'holdings.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('success', '已下载', `holdings.json → 替换 ${STATIC_DIR || '项目根目录'} 下的同名文件后 commit & push`, 4000);
+  } catch(e) {
+    showToast('error', '下载失败', e.message, 3000);
+  }
 }
 
 async function emailDailyReport() {
