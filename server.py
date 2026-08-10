@@ -1,0 +1,662 @@
+#!/usr/bin/env python3
+"""
+美股定投工具 — 本地代理服务器
+GET  /index.html      — 前端页面
+GET  /api/quotes      — 实时报价
+GET  /api/fx          — USD/CNY 汇率
+GET  /api/market      — 大盘指数 + 板块行情 + 市场情绪
+POST /api/send-email  — 发送持仓日报到 163 邮箱
+POST /api/holdings    — 同步持仓到服务器（供定时推送用）
+GET  /api/email-log   — 邮件发送历史记录
+GET  /api/schedule    — 定时配置 (查询)
+POST /api/schedule    — 定时配置 (修改)
+"""
+import http.server
+import json
+import smtplib
+import threading
+import urllib.request
+import os
+import time
+from datetime import datetime, timedelta
+from email.mime.text import MIMEText
+from email.header import Header
+
+PORT = int(os.environ.get('PORT', 8080))  # Render 云部署：自动读取 PORT 环境变量
+ALT_PORT = int(os.environ.get('PORT', 8081))
+STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
+FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg'
+CACHE_TTL = 120
+
+# 邮箱配置
+SMTP_HOST = 'smtp.163.com'
+SMTP_PORT = 465
+SMTP_USER = 'tung9462436@163.com'
+SMTP_PASS = 'RMQTXBLEXRCUYKCV'  # 授权码
+EMAIL_TO = 'tung9462436@163.com'
+
+# 默认定时推送时间（24 小时制）
+DEFAULT_SCHEDULED_TIMES = ['04:00', '08:00', '12:00', '14:00', '21:30']
+SCHEDULE_FILE = os.path.join(STATIC_DIR, 'schedule.json')
+EMAIL_LOG_FILE = os.path.join(STATIC_DIR, 'email_log.json')
+
+_cache = {}
+_email_lock = threading.Lock()
+_market_cache = {}  # 大盘数据独立缓存 (3min TTL)
+
+STOCKS = {
+    'XQQI': {'secid': '105.XQQI', 'name': 'NEOS Nasdaq-100 High Income ETF'},
+    'NVDY': {'secid': '107.NVDY', 'name': 'YieldMax NVDA Option Income ETF'},
+    'AMZY': {'secid': '107.AMZY', 'name': 'YieldMax AMZN Option Income ETF'},
+    'QDTE': {'secid': '107.QDTE', 'name': 'Roundhill 0DTE Covered Call ETF'},
+    'SPYM': {'secid': '107.SPYM', 'name': 'YieldMax S&P 500 Option Income ETF'},
+}
+
+# 默认持仓（如果服务器端没有同步过，用这些）
+DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0}
+
+# 派息信息（用于报表生成）
+DIV_INFO = {
+    'XQQI':  {'div': 0.87, 'freq': 'monthly'},
+    'NVDY':  {'div': 0.10, 'freq': 'weekly'},
+    'AMZY':  {'div': 0.10, 'freq': 'weekly'},
+    'QDTE':  {'div': 0.70, 'freq': 'monthly'},
+    'SPYM':  {'div': 0.43, 'freq': 'quarterly'},
+}
+
+# 大盘指数配置
+MARKET_INDICES = {
+    'SPX':   {'secid': 'usINX',      'name': '标普500',   'cn': 'S&P 500'},
+    'IXIC':  {'secid': 'usIXIC',     'name': '纳斯达克',   'cn': 'NASDAQ'},
+    'DJI':   {'secid': 'usDJI',      'name': '道琼斯',     'cn': 'DJIA'},
+    'RUT':   {'secid': 'usRUT',      'name': '罗素2000',   'cn': 'Russell 2000'},
+}
+
+# 热门板块 ETF（NYSE Arca: 106）
+MARKET_SECTORS = {
+    'XLK':   {'secid': 'usXLK',   'name': '科技',       'icon': 'tech',   'weight': 0.12},
+    'XLF':   {'secid': 'usXLF',   'name': '金融',       'icon': 'fin',    'weight': 0.10},
+    'XLE':   {'secid': 'usXLE',   'name': '能源',       'icon': 'energy', 'weight': 0.08},
+    'XLV':   {'secid': 'usXLV',   'name': '医疗健康',   'icon': 'health', 'weight': 0.09},
+    'XLY':   {'secid': 'usXLY',   'name': '可选消费',   'icon': 'cons',   'weight': 0.10},
+    'XLI':   {'secid': 'usXLI',   'name': '工业',       'icon': 'ind',    'weight': 0.09},
+    'XLU':   {'secid': 'usXLU',   'name': '公用事业',   'icon': 'util',   'weight': 0.07},
+    'XLB':   {'secid': 'usXLB',   'name': '基础材料',   'icon': 'mat',    'weight': 0.06},
+    'XLRE':  {'secid': 'usXLRE',  'name': '房地产',     'icon': 're',     'weight': 0.07},
+    'XLC':   {'secid': 'usXLC',   'name': '通讯服务',   'icon': 'comm',   'weight': 0.08},
+    'SMH':   {'secid': 'usSMH',   'name': '半导体',     'icon': 'semi',   'weight': 0.07},
+    'IBB':   {'secid': 'usIBB',   'name': '生物科技',   'icon': 'bio',    'weight': 0.07},
+}
+
+# 情绪指标：VXX (恐慌指数代理) + SHY (避险短债)
+MARKET_SENTIMENT = {
+    'VXX':   {'secid': 'usVXX',   'name': '恐慌指数',   'cn': 'VIX Proxy'},
+    'SHY':   {'secid': 'usSHY',   'name': '短债避险',   'cn': 'Treasury'},
+}
+
+
+# ============ 定时配置管理 ============
+def load_schedule():
+    if os.path.exists(SCHEDULE_FILE):
+        try:
+            with open(SCHEDULE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                times = data.get('times', DEFAULT_SCHEDULED_TIMES)
+                # 验证格式
+                valid = []
+                for t in times:
+                    try:
+                        h, m = t.split(':')
+                        h, m = int(h), int(m)
+                        if 0 <= h < 24 and 0 <= m < 60:
+                            valid.append(f"{h:02d}:{m:02d}")
+                    except Exception:
+                        pass
+                return valid or DEFAULT_SCHEDULED_TIMES
+        except Exception:
+            pass
+    return DEFAULT_SCHEDULED_TIMES
+
+def save_schedule(times):
+    with open(SCHEDULE_FILE, 'w', encoding='utf-8') as f:
+        json.dump({'times': times, 'updated': time.strftime('%Y-%m-%d %H:%M:%S')}, f, ensure_ascii=False, indent=2)
+
+
+# ============ 邮件发送日志 ============
+def load_email_log():
+    if os.path.exists(EMAIL_LOG_FILE):
+        try:
+            with open(EMAIL_LOG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {'records': []}
+
+def append_email_log(record):
+    """记录发送日志，最多保留 100 条"""
+    log = load_email_log()
+    log['records'].append(record)
+    if len(log['records']) > 100:
+        log['records'] = log['records'][-100:]
+    with open(EMAIL_LOG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(log, f, ensure_ascii=False, indent=2)
+
+
+# ============ 数据源 ============
+def fetch_finnhub(ticker):
+    url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_KEY}"
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode())
+
+
+def fetch_eastmoney(secid):
+    url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f43,f44,f45,f46,f60,f169,f170"
+    req = urllib.request.Request(url)
+    req.add_header('User-Agent', 'Mozilla/5.0')
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        raw = json.loads(resp.read().decode())
+        data = raw.get('data', {})
+        if not data or not data.get('f43'):
+            return None
+        price = data['f43'] / 1000
+        return {
+            'c': price,
+            'd': (data.get('f169', 0) or 0) / 1000,
+            'dp': (data.get('f170', 0) or 0) / 100,
+            'h': (data.get('f44', 0) or price * 1000) / 1000,
+            'l': (data.get('f45', 0) or price * 1000) / 1000,
+            'o': (data.get('f46', 0) or price * 1000) / 1000,
+            'pc': (data.get('f60', 0) or price * 1000) / 1000,
+            't': int(time.time())
+        }
+
+
+def fetch_fx():
+    url = "https://open.er-api.com/v6/latest/USD"
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode())
+        return data['rates']['CNY']
+
+
+def fetch_market_batch(secid_map):
+    """批量拉取大盘行情（腾讯 qt.gtimg.cn，一次请求多个标的）
+
+    返回格式（每行）: v_<secid>="200~name~code~current~prev_close~open~...~date~change~change_pct~..."
+    字段位置:
+        [0]status 200 / [1]cn_name / [2]code / [3]current / [4]prev_close / [5]open
+        [6]volume / [30]date / [31]change / [32]change_pct / [33]high / [34]low / [41]full_name
+    """
+    if not secid_map:
+        return {}
+    secids = ','.join(v['secid'] for v in secid_map.values())
+    url = f"https://qt.gtimg.cn/q={secids}"
+    req = urllib.request.Request(url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    req.add_header('Referer', 'https://finance.qq.com/')
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read().decode('gbk', errors='ignore')
+        result = {}
+        for line in raw.split('\n'):
+            line = line.strip()
+            if not line.startswith('v_'):
+                continue
+            try:
+                key, payload = line.split('=', 1)
+                payload = payload.strip().strip(';').strip('"')
+                if not payload or payload.startswith('v_pv_none_match'):
+                    continue
+                parts = payload.split('~')
+                if len(parts) < 33 or parts[0] != '200':
+                    continue
+                # 反查 ticker
+                secid_short = key[2:]  # e.g. "usINX" or "usXLK.AM" -> take usXXX
+                # 用 secid 前缀匹配
+                ticker = None
+                for t, info in secid_map.items():
+                    if info['secid'] == secid_short or info['secid'].startswith(secid_short):
+                        ticker = t
+                        break
+                if not ticker:
+                    continue
+                current = float(parts[3])
+                prev_close = float(parts[4])
+                if current <= 0 or prev_close <= 0:
+                    continue
+                change = float(parts[31]) if len(parts) > 31 else (current - prev_close)
+                change_pct = float(parts[32]) if len(parts) > 32 else ((current - prev_close) / prev_close * 100)
+                result[ticker] = {
+                    'c': current,
+                    'd': change,
+                    'dp': change_pct,
+                    'h': float(parts[33]) if len(parts) > 33 else current,
+                    'l': float(parts[34]) if len(parts) > 34 else current,
+                    'o': float(parts[5]) if len(parts) > 5 else current,
+                    'pc': prev_close,
+                    'name': parts[1],
+                }
+            except (ValueError, IndexError) as e:
+                continue
+        return result
+    except Exception as e:
+        print(f"[Market] 请求失败: {type(e).__name__}: {e}")
+        return {}
+
+
+# Debug: count raw lines received
+_MARKET_DEBUG = True
+
+
+def get_market_data():
+    """获取大盘指数 + 热门板块 + 情绪数据 (3分钟缓存)"""
+    now = time.time()
+    if _market_cache.get('ts') and now - _market_cache['ts'] < 180:
+        return _market_cache['data']
+
+    # 构建 secid 映射（保持 cfg_dict 形式供 wrap_section 使用）
+    all_secids = {}
+    for k, v in {**MARKET_INDICES, **MARKET_SECTORS, **MARKET_SENTIMENT}.items():
+        all_secids[k] = {'secid': v['secid']}
+
+    # 批量拉取
+    raw = fetch_market_batch(all_secids)
+
+    def wrap_section(cfg_dict, raw_data):
+        items = []
+        up = down = 0
+        for ticker, info in cfg_dict.items():
+            q = raw_data.get(ticker)
+            if q and q.get('c', 0) > 0:
+                items.append({**info, 'ticker': ticker, 'quote': q})
+                if q.get('dp', 0) >= 0:
+                    up += 1
+                else:
+                    down += 1
+        return {'items': items, 'up': up, 'down': down}
+
+    data = {
+        'indices': wrap_section(MARKET_INDICES, raw),
+        'sectors': wrap_section(MARKET_SECTORS, raw),
+        'sentiment': wrap_section(MARKET_SENTIMENT, raw),
+        'ts': int(now)
+    }
+
+    # 计算综合情绪分数 (0-100，50为中性)
+    idx_items = data['indices']['items']
+    sec_items = data['sectors']['items']
+
+    # 指数加权平均涨跌
+    idx_avg_dp = 0
+    if idx_items:
+        weights = {'SPX': 0.4, 'IXIC': 0.3, 'DJI': 0.2, 'RUT': 0.1}
+        total_w = sum(weights.get(i['ticker'], 0.1) for i in idx_items)
+        idx_avg_dp = sum(
+            i['quote']['dp'] * weights.get(i['ticker'], 0.1)
+            for i in idx_items
+        ) / max(total_w, 0.01)
+
+    # 板块宽度
+    sec_adv_pct = data['sectors']['up'] / max(len(data['sectors']['items']), 1) * 100
+
+    # 综合情绪 = 60% 指数表现 + 40% 板块宽度
+    idx_signal = 50 + idx_avg_dp * 6  # 每1%涨跌≈6分
+    idx_signal = max(0, min(100, idx_signal))
+    composite = idx_signal * 0.6 + sec_adv_pct * 0.4
+    composite = round(max(0, min(100, composite)), 1)
+
+    if composite >= 75:
+        sentiment_label = '强烈乐观'
+        sentiment_color = '#22c55e'
+    elif composite >= 60:
+        sentiment_label = '偏乐观'
+        sentiment_color = '#4ade80'
+    elif composite >= 45:
+        sentiment_label = '中性'
+        sentiment_color = '#f59e0b'
+    elif composite >= 30:
+        sentiment_label = '偏谨慎'
+        sentiment_color = '#f87171'
+    else:
+        sentiment_label = '恐慌'
+        sentiment_color = '#ef4444'
+
+    data['composite'] = {
+        'score': composite,
+        'label': sentiment_label,
+        'color': sentiment_color,
+        'idx_avg_dp': round(idx_avg_dp, 2),
+        'sec_adv_pct': round(sec_adv_pct, 1),
+    }
+
+    _market_cache['ts'] = now
+    _market_cache['data'] = data
+    ok = len(idx_items) + len(sec_items)
+    print(f"[Market] indices={len(idx_items)} sectors={len(sec_items)} sentiment={len(data['sentiment']['items'])}")
+    return data
+
+
+def get_all_quotes():
+    now = time.time()
+    if _cache.get('ts') and now - _cache['ts'] < CACHE_TTL:
+        return _cache['data']
+
+    result = {}
+    for ticker, info in STOCKS.items():
+        try:
+            data = fetch_eastmoney(info['secid'])
+            if data and data.get('c', 0) > 0:
+                result[ticker] = data
+                continue
+        except Exception as e:
+            print(f"[EastMoney:{ticker}] {e}")
+
+        try:
+            data = fetch_finnhub(ticker)
+            if data and data.get('c', 0) > 0:
+                result[ticker] = data
+                continue
+        except Exception as e:
+            print(f"[Finnhub:{ticker}] {e}")
+
+        result[ticker] = None
+
+    ok = sum(1 for v in result.values() if v)
+    print(f"[Quotes] {ok}/{len(result)} stocks fetched at {time.strftime('%H:%M:%S')}")
+
+    fx = 6.75
+    try:
+        fx = fetch_fx()
+    except Exception as e:
+        print(f"[FX] fallback: {e}")
+
+    _cache['ts'] = now
+    _cache['data'] = {'quotes': result, 'fx': fx, 'ok': ok}
+    return _cache['data']
+
+
+def load_holdings():
+    """从服务器端 holdings.json 读取持仓"""
+    path = os.path.join(STATIC_DIR, 'holdings.json')
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return DEFAULT_HOLDINGS.copy()
+
+
+def save_holdings(h):
+    path = os.path.join(STATIC_DIR, 'holdings.json')
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(h, f, ensure_ascii=False, indent=2)
+
+
+def generate_report(holdings=None):
+    """生成持仓日报文本"""
+    if holdings is None:
+        holdings = load_holdings()
+
+    data = get_all_quotes()
+    quotes = data['quotes']
+    fx = data['fx']
+
+    now = time.strftime('%Y-%m-%d %H:%M', time.localtime())
+    days = ['周日','周一','周二','周三','周四','周五','周六']
+    weekday = days[int(time.strftime('%w'))]
+
+    lines = [f"{now} {weekday} 美股持仓 · 今日收益"]
+    lines.append("=" * 40)
+
+    total_value = 0
+    total_pnl = 0
+
+    for ticker, info in STOCKS.items():
+        q = quotes.get(ticker)
+        shares = holdings.get(ticker, 0)
+        if not shares or not q or q.get('c', 0) <= 0:
+            continue
+        price = q['c']
+        prev = q.get('pc', price)
+        val = shares * price * fx
+        pnl = shares * (price - prev) * fx
+        pnl_pct = (price - prev) / prev * 100 if prev > 0 else 0
+        total_value += val
+        total_pnl += pnl
+
+        sign = '+' if pnl >= 0 else ''
+        lines.append(
+            f"{ticker:<6} {shares:>5}股  ${price:>8.2f}  "
+            f"¥{val:>10,.0f}  {sign}¥{pnl:>8,.0f}  {sign}{pnl_pct:.2f}%"
+        )
+
+    lines.append("=" * 40)
+    lines.append(f"总市值   ¥{total_value:,.0f}")
+    sign = '+' if total_pnl >= 0 else ''
+    lines.append(f"今日盈亏  {sign}¥{total_pnl:,.0f}")
+    lines.append(f"美元汇率  $1 = ¥{fx:.4f}")
+    lines.append("")
+    lines.append("-- 策 · 美股定投助手")
+
+    return "\n".join(lines)
+
+
+def send_email(subject, body):
+    """通过 163 SMTP 发送邮件（含重试机制）"""
+    msg = MIMEText(body, 'plain', 'utf-8')
+    msg['Subject'] = Header(subject, 'utf-8')
+    msg['From'] = SMTP_USER
+    msg['To'] = EMAIL_TO
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(SMTP_USER, EMAIL_TO, msg.as_string())
+            return True, None
+        except smtplib.SMTPAuthenticationError as e:
+            return False, 'SMTP 认证失败，请检查授权码'
+        except Exception as e:
+            last_error = str(e)
+            print(f"[Email] 第 {attempt+1} 次失败: {e}")
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # 指数退避 1s, 2s
+    return False, last_error or '未知错误'
+
+
+def scheduler_loop():
+    """定时推送线程：到点自动发送日报（持久化 + 重试）"""
+    sent_today = set()
+    while True:
+        now = time.strftime('%H:%M', time.localtime())
+        today = time.strftime('%Y-%m-%d', time.localtime())
+
+        # 每天 00:00 清空今日发送记录
+        if now == '00:00':
+            sent_today.clear()
+
+        # 读取最新定时配置（支持热更新）
+        scheduled = load_schedule()
+
+        if now in scheduled:
+            key = f"{today}_{now}"
+            if key not in sent_today:
+                sent_today.add(key)
+                # 加锁防止并发发送
+                if not _email_lock.acquire(blocking=False):
+                    print(f"[Scheduler] 上一封还在发，跳过 ({now})")
+                    continue
+                try:
+                    holdings = load_holdings()
+                    if any(v > 0 for v in holdings.values()):
+                        report = generate_report(holdings)
+                        subject = f"美股持仓日报 · {today} {now}"
+                        ok, err = send_email(subject, report)
+                        status = 'success' if ok else 'failed'
+                        msg = '已发送' if ok else f'失败: {err}'
+                        print(f"[Scheduler] {msg} ({now})")
+                        append_email_log({
+                            'time': f"{today} {now}",
+                            'status': status,
+                            'subject': subject,
+                            'message': msg,
+                            'total_value': sum(
+                                holdings.get(t, 0) * (get_all_quotes()['quotes'].get(t, {}) or {}).get('c', 0) * get_all_quotes()['fx']
+                                for t in STOCKS
+                                if holdings.get(t, 0) > 0 and (get_all_quotes()['quotes'].get(t, {}) or {}).get('c', 0) > 0
+                            )
+                        })
+                    else:
+                        print(f"[Scheduler] 无持仓，跳过 ({now})")
+                        append_email_log({
+                            'time': f"{today} {now}",
+                            'status': 'skipped',
+                            'subject': '',
+                            'message': '无持仓'
+                        })
+                except Exception as e:
+                    print(f"[Scheduler] 异常: {e}")
+                    append_email_log({
+                        'time': f"{today} {now}",
+                        'status': 'error',
+                        'subject': '',
+                        'message': str(e)
+                    })
+                finally:
+                    _email_lock.release()
+
+        # 每 30 秒检查一次时间
+        time.sleep(30)
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=STATIC_DIR, **kwargs)
+
+    def do_GET(self):
+        if self.path == '/api/quotes':
+            self.send_json(get_all_quotes())
+        elif self.path == '/api/fx':
+            try:
+                fx = fetch_fx()
+                self.send_json({'fx': fx, 'ok': True})
+            except Exception as e:
+                self.send_json({'fx': 6.75, 'ok': False, 'error': str(e)})
+        elif self.path == '/api/email-log':
+            log = load_email_log()
+            # 倒序返回（最新的在前）
+            log['records'] = list(reversed(log['records']))
+            log['count'] = len(log['records'])
+            self.send_json(log)
+        elif self.path == '/api/schedule':
+            self.send_json({'times': load_schedule(), 'default': DEFAULT_SCHEDULED_TIMES})
+        elif self.path == '/api/market':
+            self.send_json(get_market_data())
+        else:
+            super().do_GET()
+
+    def do_POST(self):
+        if self.path == '/api/send-email':
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            data = json.loads(body)
+            report = data.get('report', '')
+            to = data.get('to', EMAIL_TO)
+            subject = data.get('subject', '美股持仓日报')
+            ok, err = send_email(subject, report)
+            if ok:
+                print(f"[Email] 日报已发送到 {to}")
+                append_email_log({
+                    'time': time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'status': 'success',
+                    'subject': subject,
+                    'message': f'已发送至 {to} (手动)'
+                })
+                self.send_json({'ok': True})
+            else:
+                print(f"[Email] 发送失败: {err}")
+                append_email_log({
+                    'time': time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'status': 'failed',
+                    'subject': subject,
+                    'message': err
+                })
+                self.send_json({'ok': False, 'error': err})
+        elif self.path == '/api/holdings':
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            data = json.loads(body)
+            save_holdings(data)
+            print(f"[Holdings] 已同步: {data}")
+            self.send_json({'ok': True})
+        elif self.path == '/api/schedule':
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            data = json.loads(body)
+            times = data.get('times', [])
+            # 验证格式
+            valid = []
+            for t in times:
+                try:
+                    h, m = t.split(':')
+                    h, m = int(h), int(m)
+                    if 0 <= h < 24 and 0 <= m < 60:
+                        valid.append(f"{h:02d}:{m:02d}")
+                except Exception:
+                    pass
+            if valid:
+                save_schedule(valid)
+                print(f"[Schedule] 已更新: {valid}")
+                self.send_json({'ok': True, 'times': valid})
+            else:
+                self.send_json({'ok': False, 'error': '无有效时间'})
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def send_json(self, data):
+        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        if '/api/' in args[0]:
+            print(f"[{time.strftime('%H:%M:%S')}] {args[0]}")
+
+
+if __name__ == '__main__':
+    # 启动定时推送线程
+    scheduler = threading.Thread(target=scheduler_loop, daemon=True)
+    scheduler.start()
+    scheduled = load_schedule()
+    print(f"[Scheduler] 定时推送已启动: {', '.join(scheduled)}")
+
+    print(f"\n{'='*50}")
+    print(f"  美股定投工具 — 本地代理服务器")
+    print(f"  邮箱: {EMAIL_TO}")
+    print(f"{'='*50}\n")
+
+    server = None
+    actual_port = PORT
+    try:
+        server = http.server.HTTPServer(('0.0.0.0', PORT), Handler)
+    except OSError:
+        print(f"[Server] 端口 {PORT} 被占用，退回到 {ALT_PORT}")
+        actual_port = ALT_PORT
+        server = http.server.HTTPServer(('0.0.0.0', ALT_PORT), Handler)
+    print(f"  地址: http://localhost:{actual_port}/index.html")
+    print(f"  邮箱: {EMAIL_TO}")
+    print(f"  定时: {', '.join(scheduled)}")
+    print(f"{'='*50}\n")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n服务器已停止")

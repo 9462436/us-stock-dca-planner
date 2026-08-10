@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 本地运行文件
+*.bat
+server.log
+email_log.json
+schedule.json
+holdings.json
+
+# 系统文件
+.DS_Store
+Thumbs.db
+_patch_marker.py
