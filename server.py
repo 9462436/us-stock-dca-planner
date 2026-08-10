@@ -39,6 +39,13 @@ EMAIL_TO = 'tung9462436@163.com'
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')  # 云端邮件
 print(f"[Config] RESEND_API_KEY: {'已配置 (' + RESEND_API_KEY[:8] + '...)' if RESEND_API_KEY else '未配置'}")
 
+
+# GitHub Token（云端直接推送 holdings.json 到 GitHub，不等 GitHub Actions）
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+GITHUB_REPO = '9462436/us-stock-dca-planner'
+GITHUB_FILE = 'holdings.json'
+print(f"[Config] GITHUB_TOKEN: {'已配置 (' + GITHUB_TOKEN[:8] + '...)' if GITHUB_TOKEN else '未配置'}")
+
 # 默认定时推送时间（24 小时制）
 # 每半小时 00:00, 00:30, 01:00, ...
 DEFAULT_SCHEDULED_TIMES = [f'{h:02d}:{m:02d}' for h in range(24) for m in (0, 30)]
@@ -397,6 +404,52 @@ def save_holdings(h):
     path = os.path.join(STATIC_DIR, 'holdings.json')
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(h, f, ensure_ascii=False, indent=2)
+
+    # 云端有 GitHub Token 时，直接推送到 GitHub 仓库（瞬时同步）
+    if GITHUB_TOKEN:
+        threading.Thread(target=push_holdings_to_github, args=(h,), daemon=True).start()
+
+
+def push_holdings_to_github(holdings):
+    """通过 GitHub REST API 推送 holdings.json（避免 5 分钟延迟）"""
+    import base64
+    url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}'
+    headers = {
+        'Authorization': f'Bearer {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'CloudSync/1.0',
+    }
+    try:
+        # 第一步：获取当前文件的 SHA
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            current = json.loads(resp.read().decode())
+            sha = current.get('sha', '')
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            sha = ''  # 文件不存在，将创建
+        else:
+            print(f"[GitHub] 获取 SHA 失败: {e.code}")
+            return
+
+    # 第二步：PUT 更新
+    content_b64 = base64.b64encode(
+        json.dumps(holdings, ensure_ascii=False, indent=2).encode('utf-8')
+    ).decode('ascii')
+    body = json.dumps({
+        'message': 'auto-sync: 网页修改持仓',
+        'content': content_b64,
+        'sha': sha,
+        'branch': 'main',
+    }).encode('utf-8')
+    req = urllib.request.Request(url, data=body, headers=headers, method='PUT')
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read().decode())
+            if 'content' in result:
+                print(f"[GitHub] holdings.json 已推送 ✓")
+    except Exception as e:
+        print(f"[GitHub] 推送失败: {e}")
 
 
 def generate_report(holdings=None):
