@@ -19,6 +19,14 @@ import urllib.request
 import os
 import time
 from datetime import datetime, timedelta
+
+# 云端时区设置：Render 默认 UTC，强制用北京时间
+os.environ['TZ'] = 'Asia/Shanghai'
+if hasattr(time, 'tzset'):
+    try:
+        time.tzset()
+    except Exception:
+        pass
 from email.mime.text import MIMEText
 from email.header import Header
 
