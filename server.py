@@ -35,6 +35,10 @@ SMTP_USER = 'tung9462436@163.com'
 SMTP_PASS = 'RMQTXBLEXRCUYKCV'  # 授权码
 EMAIL_TO = 'tung9462436@163.com'
 
+# Resend API（云端邮件发送，通过 HTTPS 443）
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')  # 云端邮件
+print(f"[Config] RESEND_API_KEY: {'已配置 (' + RESEND_API_KEY[:8] + '...)' if RESEND_API_KEY else '未配置'}")
+
 # 默认定时推送时间（24 小时制）
 DEFAULT_SCHEDULED_TIMES = ['04:00', '08:00', '12:00', '14:00', '21:30']
 SCHEDULE_FILE = os.path.join(STATIC_DIR, 'schedule.json')
@@ -443,9 +447,6 @@ def generate_report(holdings=None):
     return "\n".join(lines)
 
 
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')  # 云端邮件
-
-
 def send_email_via_resend(subject, body):
     """通过 Resend HTTPS API 发送邮件（Render 等云端环境 SMTP 被屏蔽时的替代方案）"""
     url = "https://api.resend.com/emails"
@@ -596,6 +597,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'times': load_schedule(), 'default': DEFAULT_SCHEDULED_TIMES})
         elif self.path == '/api/market':
             self.send_json(get_market_data())
+        elif self.path == '/api/debug-config':
+            # 调试：返回当前关键配置（脱敏）
+            self.send_json({
+                'resend_configured': bool(RESEND_API_KEY),
+                'resend_prefix': RESEND_API_KEY[:8] + '...' if RESEND_API_KEY else None,
+                'smtp_user': SMTP_USER,
+                'email_to': EMAIL_TO,
+                'port': PORT,
+            })
         else:
             super().do_GET()
 
