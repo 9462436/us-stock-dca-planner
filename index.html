@@ -2459,32 +2459,44 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 const stockConfigs = [
   {
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
-    divPerShare: 0.87, divFreq: 'monthly',
-    erosionRate: 5, allocation: 0,
+    divPerShare: 0.75, divFreq: 'monthly',   // 月分红 ~$0.75，年化约 $9.0，股息率 ~18%
+    erosionRate: 6, allocation: 0,           // NAV 年侵蚀 ~6%
+    // 长期可持续参数（用于模拟）
+    sustainableYield: 0.12,  // 长期可持续股息率 12%
+    expectedPriceReturn: -0.02, // 长期价格年化 -2%（侵蚀部分未被股息覆盖）
     color: '#3b82f6', colorClass: 'c-xqqi'
   },
   {
     ticker: 'NVDY', name: 'YieldMax NVDA Option Income ETF',
-    divPerShare: 0.10, divFreq: 'weekly',
-    erosionRate: 17, allocation: 20,
+    divPerShare: 0.08, divFreq: 'weekly',    // 周分红 ~$0.08，年化约 $4.16，当前股息率 ~33%
+    erosionRate: 17, allocation: 20,          // NAV 年侵蚀 ~17%（单股+高波动）
+    // 长期可持续参数：单股 covered call 在牛市中侵蚀极大，分红会被削减
+    sustainableYield: 0.18,  // 长期可持续股息率 18%（分红会随 NAV 下降而削减）
+    expectedPriceReturn: -0.08, // 长期价格年化 -8%
     color: '#22c55e', colorClass: 'c-nvdy'
   },
   {
     ticker: 'AMZY', name: 'YieldMax AMZN Option Income ETF',
-    divPerShare: 0.08, divFreq: 'weekly',
-    erosionRate: 18, allocation: 20,
+    divPerShare: 0.07, divFreq: 'weekly',    // 周分红 ~$0.07，年化约 $3.64，当前股息率 ~31%
+    erosionRate: 18, allocation: 20,          // NAV 年侵蚀 ~18%
+    sustainableYield: 0.16,  // 长期可持续股息率 16%
+    expectedPriceReturn: -0.08, // 长期价格年化 -8%
     color: '#f59e0b', colorClass: 'c-amzy'
   },
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
-    divPerShare: 0.20, divFreq: 'weekly',
-    erosionRate: 8, allocation: 20,
+    divPerShare: 0.60, divFreq: 'monthly',   // 月分红 ~$0.60，年化约 $7.2，股息率 ~24%
+    erosionRate: 10, allocation: 20,          // NAV 年侵蚀 ~10%（0DTE 策略上涨捕获少）
+    sustainableYield: 0.14,  // 长期可持续股息率 14%
+    expectedPriceReturn: -0.04, // 长期价格年化 -4%
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
   {
     ticker: 'SPYM', name: 'YieldMax S&P 500 Option Income ETF',
-    divPerShare: 0.25, divFreq: 'monthly',
-    erosionRate: -3, allocation: 0,
+    divPerShare: 0.35, divFreq: 'monthly',   // 月分红 ~$0.35，年化约 $4.2，股息率 ~4.6%
+    erosionRate: 4, allocation: 0,            // NAV 年侵蚀 ~4%（标普500 covered call 长期微负）
+    sustainableYield: 0.08,  // 长期可持续股息率 8%（标普500 期权金较稳定）
+    expectedPriceReturn: 0.03, // 长期价格年化 +3%（标普长期上涨抵消部分侵蚀）
     color: '#06b6d4', colorClass: 'c-spym'
   }
 ];
@@ -3211,23 +3223,33 @@ function calculate() {
   const annualVol = 0.18;
   const monthlyVol = annualVol / Math.sqrt(12);
 
+  // === 波动率动态分红模型 ===
+  // YieldMax 类 ETF 的核心：期权金收入 ∝ 隐含波动率
+  // 长期均值 VIX ≈ 18，当前 VIX ≈ 18-20
+  // 分红率 = 基础可持续分红率 × (当前波动率 / 长期均值波动率) ^ 弹性系数
+  // 弹性系数 ≈ 0.6-0.8（实证：波动率翻倍时分红约增加 50-70%）
+  const VIX_LONG_TERM = 18;
+  const VOL_ELASTICITY = 0.7;  // 分红对波动率的弹性
+  const VOL_FLOOR = 0.3;       // 最低分红保底 30%（避免极端低波动归零）
+  const VOL_CAP = 2.0;         // 最高分红封顶 2 倍（风控上限）
+
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
   const stocks = stockConfigs.map(s => {
     const q = quotes[s.ticker];
     const px = (q && q.c > 0) ? q.c : 50;
-    // 年化股息率 = 每股股息 × 年频率 ÷ 当前股价
-    const annualDivPerShare = getMonthlyDivs(s) * 12;
-    const divYield = px > 0 ? annualDivPerShare / px : 0.20;
-    // 预期年总回报 = 股息率 − 侵蚀率
-    const annualReturn = divYield - s.erosionRate / 100;
+    // 基础可持续分红率（长期均值波动率下的分红率）
+    const baseDivYield = s.sustainableYield || s.divPerShare * 12 / px;
+    const monthlyReturn = (s.expectedPriceReturn !== undefined
+      ? s.expectedPriceReturn / 12
+      : -s.erosionRate / 100 / 12);
     return {
       ...s,
       allocation: totalAlloc > 0 ? s.allocation / totalAlloc : 0.2,
       shares: 0, costBasis: 0,
       totalDividendsEarned: 0,
       price: px, initialPrice: px,
-      divYield: divYield,
-      monthlyReturn: annualReturn / 12
+      baseDivYield: baseDivYield,  // 存储基础分红率
+      monthlyReturn: monthlyReturn
     };
   });
 
@@ -3237,6 +3259,17 @@ function calculate() {
   let rngSeed = 42;
   const rng = () => { rngSeed = (rngSeed * 16807 + 0) % 2147483647; return rngSeed / 2147483647; };
   const randn = () => { let u=rng(),v=rng(); return Math.sqrt(-2*Math.log(u||0.0001))*Math.cos(2*Math.PI*v); };
+
+  // GARCH(1,1) 波动率动态模型
+  // σ²_t = ω + α * ε²_{t-1} + β * σ²_{t-1}
+  // 长期年化 18% → 月度方差 = 0.18²/12 = 0.0027
+  // 标准参数：α=0.10, β=0.85, ω = longVar*(1-α-β) = 0.0027*0.05 = 0.000135
+  const LONG_VAR = (annualVol * annualVol) / 12;  // 长期月度方差
+  const GARCH_ALPHA = 0.10;  // 冲击响应
+  const GARCH_BETA = 0.85;   // 持续性
+  const GARCH_OMEGA = LONG_VAR * (1 - GARCH_ALPHA - GARCH_BETA);
+  let currentVar = LONG_VAR;  // 当前条件方差
+  let lastReturn = 0;         // 上期收益率（用于计算冲击）
 
   for (let m = 0; m < totalMonths; m++) {
     let totalUSD = monthlyInvestRMB / safeFx;
@@ -3264,10 +3297,26 @@ function calculate() {
     }
     cumulativeInvestedRMB += monthInvestedUSD * safeFx;
 
-    // ===== 股息计算 & 自动再投资 =====
+    // === GARCH(1,1) 波动率更新 ===
+    if (m > 0) {
+      // 计算上期标准化冲击
+      const shock = lastReturn / Math.sqrt(currentVar);
+      // GARCH 更新：新方差 = ω + α * (上期收益²) + β * 旧方差
+      // 等价于：ω + α * (shock² * 旧方差) + β * 旧方差
+      currentVar = GARCH_OMEGA + GARCH_ALPHA * (lastReturn * lastReturn) + GARCH_BETA * currentVar;
+      currentVar = Math.max(LONG_VAR * 0.2, Math.min(LONG_VAR * 5, currentVar)); // 限制在长期均值的 0.2x-5x
+    }
+    const effectiveVol = Math.sqrt(currentVar * 12); // 年化波动率
+
+    // ===== 股息计算 & 自动再投资（波动率动态调整）=====
     for (const st of stocks) {
       if (st.shares <= 0) continue;
-      const divPerShare = st.price * (st.divYield / 12); // 股息随价格缩放
+      // 动态分红率 = 基础分红率 × (当前波动率 / 长期波动率) ^ 弹性
+      const volRatio = effectiveVol / annualVol;
+      const volMultiplier = Math.max(VOL_FLOOR, Math.min(VOL_CAP, Math.pow(volRatio, VOL_ELASTICITY)));
+      const dynamicDivYield = st.baseDivYield * volMultiplier;
+      
+      const divPerShare = st.price * (dynamicDivYield / 12);
       const gross = st.shares * divPerShare;
       const net = gross * (1 - taxRate);
       st.totalDividendsEarned += net;
@@ -3278,9 +3327,12 @@ function calculate() {
 
     // ===== 价格变动：预期回报 + 随机噪声 =====
     for (const st of stocks) {
-      const noise = randn() * monthlyVol;
-      st.price *= (1 + st.monthlyReturn + noise);
+      const noise = randn() * Math.sqrt(currentVar);
+      const monthlyRet = st.monthlyReturn + noise;
+      st.price *= (1 + monthlyRet);
       if (st.price < 0.01) st.price = 0.01;
+      // 记录组合层面的收益率用于下期 GARCH
+      if (st.ticker === 'XQQI') lastReturn = monthlyRet; // 用最大权重标的作为代理
     }
 
     let portfolioValueUSD = 0;
@@ -3632,7 +3684,10 @@ function renderLibrary() {
     SPYM: 'YieldMax S&P 500 Option Income ETF，标普500指数covered call策略，季度派息，提供大盘基础上的额外收益。'
   };
   grid.innerHTML = stockConfigs.map(s => {
-    const yieldPct = (s.divPerShare * (s.divFreq === 'weekly' ? 52 : s.divFreq === 'monthly' ? 12 : 4) / 100 * 100);
+    // 使用 fallback 价格估算股息率（仅供参考）
+    const fallbackPx = fallbackQuotes[s.ticker]?.c || 100;
+    const annualDiv = s.divPerShare * (s.divFreq === 'weekly' ? 52 : s.divFreq === 'monthly' ? 12 : 4);
+    const yieldPct = (annualDiv / fallbackPx * 100).toFixed(1);
     return `<div class="library-card" style="border-top:3px solid ${s.color};">
       <div class="lib-ticker">
         <div class="lib-color" style="background:${s.color};"></div>
@@ -3648,6 +3703,10 @@ function renderLibrary() {
         <div class="lib-metric">
           <div class="lib-metric-lbl">派息频率</div>
           <div class="lib-metric-val">${s.divFreq === 'weekly' ? '每周' : s.divFreq === 'monthly' ? '每月' : '每季'}</div>
+        </div>
+        <div class="lib-metric">
+          <div class="lib-metric-lbl">预估股息率</div>
+          <div class="lib-metric-val" style="color:var(--gold);">${yieldPct}%</div>
         </div>
         <div class="lib-metric">
           <div class="lib-metric-lbl">配置权重</div>
@@ -4111,7 +4170,7 @@ function renderSummary() {
     <div class="summary-card c-gold">
       <div class="label">${yearLabel}总收益 (含股息)</div>
       <div class="value">¥${(last.totalReturnRMB / 10000).toFixed(1)}万</div>
-      <div class="sub">CAGR ${(last.cagr||cagr).toFixed(1)}% · 股息再投资 · 蒙特卡洛模拟</div>
+      <div class="sub">CAGR ${(last.cagr||cagr).toFixed(1)}% · 股息再投资 · 长期可持续参数模拟</div>
     </div>
     <div class="summary-card" style="border-left:3px solid ${sharpeColor}">
       <div class="label">夏普比率 (年化)</div>

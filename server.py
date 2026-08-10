@@ -77,11 +77,11 @@ DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0}
 
 # 派息信息（用于报表生成）
 DIV_INFO = {
-    'XQQI':  {'div': 0.87, 'freq': 'monthly'},
-    'NVDY':  {'div': 0.10, 'freq': 'weekly'},
-    'AMZY':  {'div': 0.10, 'freq': 'weekly'},
-    'QDTE':  {'div': 0.70, 'freq': 'monthly'},
-    'SPYM':  {'div': 0.43, 'freq': 'quarterly'},
+    'XQQI':  {'div': 0.75, 'freq': 'monthly'},
+    'NVDY':  {'div': 0.08, 'freq': 'weekly'},
+    'AMZY':  {'div': 0.07, 'freq': 'weekly'},
+    'QDTE':  {'div': 0.60, 'freq': 'monthly'},
+    'SPYM':  {'div': 0.35, 'freq': 'monthly'},
 }
 
 # 大盘指数配置
