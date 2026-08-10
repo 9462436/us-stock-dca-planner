@@ -9,6 +9,18 @@ permissions:
   contents: write                # 允许 push
 
 jobs:
+  # Job 1: 外部 ping 保持 Render 服务不睡眠（免费版 15 分钟休眠限制）
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render
+        run: |
+          for i in 1 2 3; do
+            curl -fsS https://us-stock-dca-planner.onrender.com/api/fx -o /dev/null -w '%{http_code} %{time_total}s\n' && break
+            sleep 5
+          done
+
+  # Job 2: 从云端同步持仓（每 5 分钟）
   sync:
     runs-on: ubuntu-latest
     steps:
