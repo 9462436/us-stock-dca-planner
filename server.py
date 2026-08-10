@@ -607,44 +607,15 @@ def send_email_via_resend(subject, body):
 
 
 def send_email(subject, body):
-    """发送邮件：云端优先用 Resend API，本地/回退用 163 SMTP"""
-    # 云端有 Resend API Key 时优先走 HTTPS
+    """发送邮件：仅走 Resend API"""
     if RESEND_API_KEY:
         ok, err = send_email_via_resend(subject, body)
         if ok:
             print(f"[Email] Resend 发送成功")
             return True, None
-        # 云端不应该再尝试 SMTP（SMTP 端口被屏蔽），直接返回 Resend 错误
         print(f"[Email] Resend 失败({err})")
         return False, f'Resend: {err}'
-
-    # 仅在本地（未识别为 Render 环境）才走 163 SMTP
-    # Render 容器内 SMTP 端口被屏蔽，但 Resend 已配置时不会走这里
-    # 双重保险：如果检测到 RENDER 环境变量但 Resend 失败，禁止回退到 SMTP
-    if os.environ.get('RENDER'):
-        print("[Email] Render 环境 SMTP 端口被屏蔽，跳过")
-        return False, 'Render 环境无法发送 SMTP 邮件'
-
-    # 本地：使用传统 SMTP
-    msg = MIMEText(body, 'plain', 'utf-8')
-    msg['Subject'] = Header(subject, 'utf-8')
-    msg['From'] = SMTP_USER
-    msg['To'] = EMAIL_TO
-
-    last_error = None
-    for attempt in range(2):
-        try:
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=12) as server:
-                server.login(SMTP_USER, SMTP_PASS)
-                server.sendmail(SMTP_USER, EMAIL_TO, msg.as_string())
-            return True, None
-        except smtplib.SMTPAuthenticationError:
-            return False, 'SMTP 认证失败，请检查授权码'
-        except Exception as e:
-            last_error = str(e)
-            if attempt < 1:
-                time.sleep(1)
-    return False, last_error or '邮件发送失败'
+    return False, '未配置 Resend API Key'
 
 
 def scheduler_loop():
