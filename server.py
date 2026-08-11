@@ -848,8 +848,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, format, *args):
-        if '/api/' in args[0]:
-            print(f"[{time.strftime('%H:%M:%S')}] {args[0]}")
+        try:
+            # Python 3.12+ 第一个参数可能是 HTTPStatus 枚举，不能直接 'in' 检查
+            msg = format % args if args else format
+            if '/api/' in str(msg):
+                print(f"[{time.strftime('%H:%M:%S')}] {msg}")
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
