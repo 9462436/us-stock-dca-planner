@@ -619,7 +619,46 @@ def send_email(subject, body):
 
 
 def scheduler_loop():
-    """定时推送线程：到点自动发送日报（持久化 + 重试）"""
+    """定时推送线程：用队列避免因发送耗时导致的漏发"""
+    import queue as qmod
+    pending = qmod.Queue()  # 待发送队列
+
+    def sender_worker():
+        """消费队列：逐一发送，失败重试一次"""
+        while True:
+            task = pending.get()
+            today_slot, now, holdings = task['today_slot'], task['now'], task['holdings']
+            ok = False
+            for attempt in range(2):
+                try:
+                    report = generate_report(holdings)
+                    subject = f"美股持仓日报 · {today_slot} {now}"
+                    ok, err = send_email(subject, report)
+                    if ok:
+                        break
+                except Exception as e:
+                    err = str(e)
+                if attempt == 0:
+                    time.sleep(3)
+            status = 'success' if ok else 'failed'
+            msg = '已发送' if ok else f'失败(重试后): {err}'
+            print(f"[Scheduler] {msg} ({now})")
+            append_email_log({
+                'time': f"{today_slot} {now}",
+                'status': status,
+                'subject': f"美股持仓日报 · {today_slot} {now}" if ok else '',
+                'message': msg,
+                'total_value': sum(
+                    holdings.get(t, 0) * (get_all_quotes()['quotes'].get(t, {}) or {}).get('c', 0) * get_all_quotes()['fx']
+                    for t in STOCKS
+                    if holdings.get(t, 0) > 0 and (get_all_quotes()['quotes'].get(t, {}) or {}).get('c', 0) > 0
+                ) if ok else 0
+            })
+            pending.task_done()
+
+    # 启动消费线程
+    threading.Thread(target=sender_worker, daemon=True).start()
+
     sent_today = set()
     while True:
         now = time.strftime('%H:%M', time.localtime())
@@ -629,58 +668,27 @@ def scheduler_loop():
         if now == '00:00':
             sent_today.clear()
 
-        # 读取最新定时配置（支持热更新）
         scheduled = load_schedule()
 
         if now in scheduled:
             key = f"{today}_{now}"
             if key not in sent_today:
                 sent_today.add(key)
-                # 加锁防止并发发送
-                if not _email_lock.acquire(blocking=False):
-                    print(f"[Scheduler] 上一封还在发，跳过 ({now})")
-                    continue
-                try:
-                    holdings = load_holdings()
-                    if any(v > 0 for v in holdings.values()):
-                        report = generate_report(holdings)
-                        subject = f"美股持仓日报 · {today} {now}"
-                        ok, err = send_email(subject, report)
-                        status = 'success' if ok else 'failed'
-                        msg = '已发送' if ok else f'失败: {err}'
-                        print(f"[Scheduler] {msg} ({now})")
-                        append_email_log({
-                            'time': f"{today} {now}",
-                            'status': status,
-                            'subject': subject,
-                            'message': msg,
-                            'total_value': sum(
-                                holdings.get(t, 0) * (get_all_quotes()['quotes'].get(t, {}) or {}).get('c', 0) * get_all_quotes()['fx']
-                                for t in STOCKS
-                                if holdings.get(t, 0) > 0 and (get_all_quotes()['quotes'].get(t, {}) or {}).get('c', 0) > 0
-                            )
-                        })
-                    else:
-                        print(f"[Scheduler] 无持仓，跳过 ({now})")
-                        append_email_log({
-                            'time': f"{today} {now}",
-                            'status': 'skipped',
-                            'subject': '',
-                            'message': '无持仓'
-                        })
-                except Exception as e:
-                    print(f"[Scheduler] 异常: {e}")
+                holdings = load_holdings()
+                if any(v > 0 for v in holdings.values()):
+                    pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings)})
+                    print(f"[Scheduler] 入队: {now}")
+                else:
+                    print(f"[Scheduler] 无持仓，跳过 ({now})")
                     append_email_log({
                         'time': f"{today} {now}",
-                        'status': 'error',
+                        'status': 'skipped',
                         'subject': '',
-                        'message': str(e)
+                        'message': '无持仓'
                     })
-                finally:
-                    _email_lock.release()
 
-        # 每 30 秒检查一次时间
-        time.sleep(30)
+        # 每 20 秒检查一次（更密集，减少窗口遗漏）
+        time.sleep(20)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
