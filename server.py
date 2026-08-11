@@ -770,6 +770,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().send_head()
 
     def do_GET(self):
+        try:
+            self._do_GET_inner()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as e:
+            try:
+                print(f"[Handler] GET {self.path}: {type(e).__name__}: {e}")
+                self.send_json({'error': str(e), 'ok': False})
+            except Exception:
+                pass
+
+    def _do_GET_inner(self):
         if self.path == '/api/quotes':
             self.send_json(get_all_quotes())
         elif self.path == '/api/fx':
@@ -815,6 +827,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self):
+        try:
+            self._do_POST_inner()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as e:
+            try:
+                print(f"[Handler] POST {self.path}: {type(e).__name__}: {e}")
+                self.send_json({'error': str(e), 'ok': False})
+            except Exception:
+                pass
+
+    def _do_POST_inner(self):
         if self.path == '/api/send-email':
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
@@ -894,7 +918,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'public, max-age=60')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # 客户端断开，吞掉异常避免进程崩溃
+            pass
 
     def log_message(self, format, *args):
         try:
