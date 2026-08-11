@@ -639,16 +639,34 @@ def send_email_via_resend(subject, body):
         return False, f'Resend: {e}'
 
 
+def send_email_via_smtp(subject, body):
+    """通过 163 SMTP 发送邮件（免费，无日限额）"""
+    try:
+        msg = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject'] = Header(subject, 'utf-8')
+        msg['From'] = SMTP_USER
+        msg['To'] = EMAIL_TO
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_USER, [EMAIL_TO], msg.as_string())
+        print(f"[SMTP] 发送成功")
+        return True, None
+    except Exception as e:
+        print(f"[SMTP] 发送失败: {e}")
+        return False, str(e)
+
 def send_email(subject, body):
-    """发送邮件：仅走 Resend API"""
+    """发送邮件：优先 163 SMTP，失败后回退 Resend"""
+    ok, err = send_email_via_smtp(subject, body)
+    if ok:
+        return True, None
     if RESEND_API_KEY:
-        ok, err = send_email_via_resend(subject, body)
-        if ok:
-            print(f"[Email] Resend 发送成功")
+        ok2, err2 = send_email_via_resend(subject, body)
+        if ok2:
+            print(f"[Email] SMTP失败，Resend 回退成功")
             return True, None
-        print(f"[Email] Resend 失败({err})")
-        return False, f'Resend: {err}'
-    return False, '未配置 Resend API Key'
+        return False, f'SMTP: {err} / Resend: {err2}'
+    return False, f'SMTP: {err}'
 
 
 def scheduler_loop():
