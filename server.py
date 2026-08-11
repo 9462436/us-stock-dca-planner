@@ -61,6 +61,13 @@ SCHEDULE_FILE = os.path.join(STATIC_DIR, 'schedule.json')
 EMAIL_LOG_FILE = os.path.join(STATIC_DIR, 'email_log.json')
 SENT_LOG_FILE = os.path.join(STATIC_DIR, 'sent_log.json')
 
+# 强制 stdout 不缓冲，Render 日志立即可见
+import sys
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 _cache = {}
 _email_lock = threading.Lock()
 _market_cache = {}  # 大盘数据独立缓存 (3min TTL)
@@ -819,6 +826,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif self.path == '/api/load-holdings':
             # GET 持仓数据（前端启动时拉取，与 server 同源）
             self.send_json({'holdings': load_holdings()})
+        elif self.path == '/api/health':
+            # 健康检查 + 调度器状态
+            scheduled = load_schedule()
+            now_hm = time.strftime('%H:%M', time.localtime())
+            future = [t for t in scheduled if t >= now_hm]
+            next_send = future[0] if future else (scheduled[0] if scheduled else None)
+            self.send_json({
+                'ok': True,
+                'time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
+                'uptime_seconds': int(time.time() - _start_time),
+                'scheduler': {
+                    'today_sent_count': len(_sent_today) if _sent_today else 0,
+                    'next_send': next_send,
+                    'last_send': _last_send_time,
+                },
+                'holdings': load_holdings(),
+            })
         elif self.path == '/api/debug-config':
             # 调试：返回当前关键配置（脱敏）
             self.send_json({
@@ -952,10 +976,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     # 启动定时推送线程
+    print("[Boot] 启动调度器线程...", flush=True)
     scheduler = threading.Thread(target=scheduler_loop, daemon=True)
     scheduler.start()
     scheduled = load_schedule()
-    print(f"[Scheduler] 定时推送已启动: {', '.join(scheduled[:6])}... (共 {len(scheduled)} 个时间点)")
+    print(f"[Boot] 定时推送已启动: {', '.join(scheduled[:6])}... (共 {len(scheduled)} 个时间点)", flush=True)
 
     # Render 免费版 15 分钟休眠 → 每 14 分钟自 ping 一次保持活跃
     if os.environ.get('RENDER'):
