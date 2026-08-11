@@ -724,18 +724,17 @@ def scheduler_loop():
     today = time.strftime('%Y-%m-%d', time.localtime())
     print(f"[Scheduler] 恢复今日已发送: {len(_sent_today)} 个时间点")
 
-    # 启动时补发：只补最近 2 小时内遗漏的时间点
+    # 启动时补发：只补发最近遗漏的 1 封（最近一个已过的时间点）
     # Render 部署会清空磁盘，sent_log 不可靠，限制补发量防止刷邮箱
     scheduled = load_schedule()
     now = time.strftime('%H:%M', time.localtime())
     now_minutes = int(now[:2]) * 60 + int(now[3:])
-    cutoff_minutes = now_minutes - 120  # 只补最近 2 小时
-    missed = [
+    # 找最近一个已过但未发的时间点
+    past_times = sorted([
         t for t in scheduled
-        if t not in _sent_today
-        and (int(t[:2]) * 60 + int(t[3:])) >= cutoff_minutes
-        and t < now
-    ]
+        if t not in _sent_today and t < now
+    ], key=lambda t: int(t[:2]) * 60 + int(t[3:]), reverse=True)
+    missed = past_times[:1]  # 只取最近的那一封
     if missed:
         print(f"[Scheduler] 启动补发 {len(missed)} 个遗漏时间点: {', '.join(missed)}")
         holdings = load_holdings()
