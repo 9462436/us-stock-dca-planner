@@ -76,11 +76,11 @@ _last_send_time = None    # 最后一次发送时间 (datetime)  # 跨线程共�
 _start_time = time.time() # 服务器启动时间
 
 STOCKS = {
-    'XQQI': {'secid': '105.XQQI', 'name': 'NEOS Nasdaq-100 High Income ETF'},
-    'NVDY': {'secid': '107.NVDY', 'name': 'YieldMax NVDA Option Income ETF'},
-    'AMZY': {'secid': '107.AMZY', 'name': 'YieldMax AMZN Option Income ETF'},
-    'QDTE': {'secid': '107.QDTE', 'name': 'Roundhill 0DTE Covered Call ETF'},
-    'SPYM': {'secid': '107.SPYM', 'name': 'YieldMax S&P 500 Option Income ETF'},
+    'XQQI': {'secid': '105.XQQI', 'sina': 'gb_xqqi', 'name': 'NEOS Nasdaq-100 High Income ETF'},
+    'NVDY': {'secid': '107.NVDY', 'sina': 'gb_nvdy', 'name': 'YieldMax NVDA Option Income ETF'},
+    'AMZY': {'secid': '107.AMZY', 'sina': 'gb_amzy', 'name': 'YieldMax AMZN Option Income ETF'},
+    'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF'},
+    'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'YieldMax S&P 500 Option Income ETF'},
 }
 
 # 默认持仓（如果服务器端没有同步过，用这些）
@@ -243,6 +243,35 @@ def fetch_eastmoney(secid):
             'pc': (data.get('f60', 0) or price * 1000) / 1000,
             't': int(time.time())
         }
+
+
+def fetch_sina(sina_code):
+    """新浪美股行情（稳定、无鉴权、纯文本）"""
+    url = f"https://hq.sinajs.cn/list={sina_code}"
+    req = urllib.request.Request(url)
+    req.add_header('Referer', 'https://finance.sina.com.cn')
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        raw = resp.read().decode('gbk')
+    # 格式: var hq_str_gb_xxxx="名称,价格,涨跌额,涨跌幅,日期,时间,开盘,最高,最低,昨收,..."
+    if '=""' in raw or '=' not in raw:
+        return None
+    fields = raw.split('"')[1].split(',')
+    if len(fields) < 10:
+        return None
+    price = float(fields[1])
+    prev_close = float(fields[9]) if fields[9] else price
+    change = round(price - prev_close, 4)
+    change_pct = round(change / prev_close * 100, 4) if prev_close > 0 else 0
+    return {
+        'c': price,
+        'd': change,
+        'dp': change_pct,
+        'h': float(fields[6]) if fields[6] else price,
+        'l': float(fields[7]) if fields[7] else price,
+        'o': float(fields[5]) if fields[5] else price,
+        'pc': prev_close,
+        't': int(time.time())
+    }
 
 
 def fetch_fx():
@@ -437,6 +466,16 @@ def get_all_quotes():
 
     result = {}
     for ticker, info in STOCKS.items():
+        # 1. 新浪（最稳定）
+        try:
+            data = fetch_sina(info['sina'])
+            if data and data.get('c', 0) > 0:
+                result[ticker] = data
+                continue
+        except Exception as e:
+            print(f"[Sina:{ticker}] {e}")
+
+        # 2. EastMoney（备选）
         try:
             data = fetch_eastmoney(info['secid'])
             if data and data.get('c', 0) > 0:
@@ -445,6 +484,7 @@ def get_all_quotes():
         except Exception as e:
             print(f"[EastMoney:{ticker}] {e}")
 
+        # 3. Finnhub（兜底）
         try:
             data = fetch_finnhub(ticker)
             if data and data.get('c', 0) > 0:
