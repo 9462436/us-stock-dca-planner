@@ -649,12 +649,19 @@ def scheduler_loop():
     global _sent_today, _last_send_time
     import queue as qmod
     pending = qmod.Queue()
+    _daily_limit = len(load_schedule())  # 每日发送上限
+    _daily_count = [0]  # 用列表让闭包可修改
 
     def sender_worker():
         """消费队列：逐一发送，失败重试一次，成功后写持久化日志"""
         global _last_send_time
         while True:
             task = pending.get()
+            _daily_count[0] += 1
+            if _daily_count[0] > _daily_limit:
+                print(f"[Scheduler] 已达今日上限 {_daily_limit}，丢弃: {task['now']}")
+                pending.task_done()
+                continue
             today_slot, now, holdings = task['today_slot'], task['now'], task['holdings']
             ok = False
             for attempt in range(2):
@@ -692,12 +699,20 @@ def scheduler_loop():
     today = time.strftime('%Y-%m-%d', time.localtime())
     print(f"[Scheduler] 恢复今日已发送: {len(_sent_today)} 个时间点")
 
-    # 启动时补发：找出从 00:00 到现在已错过的时间点
+    # 启动时补发：只补最近 2 小时内遗漏的时间点
+    # Render 部署会清空磁盘，sent_log 不可靠，限制补发量防止刷邮箱
     scheduled = load_schedule()
     now = time.strftime('%H:%M', time.localtime())
-    missed = [t for t in scheduled if t < now and t not in _sent_today]
+    now_minutes = int(now[:2]) * 60 + int(now[3:])
+    cutoff_minutes = now_minutes - 120  # 只补最近 2 小时
+    missed = [
+        t for t in scheduled
+        if t not in _sent_today
+        and (int(t[:2]) * 60 + int(t[3:])) >= cutoff_minutes
+        and t < now
+    ]
     if missed:
-        print(f"[Scheduler] 启动补发 {len(missed)} 个遗漏时间点: {', '.join(missed[:8])}{'...' if len(missed)>8 else ''}")
+        print(f"[Scheduler] 启动补发 {len(missed)} 个遗漏时间点: {', '.join(missed)}")
         holdings = load_holdings()
         if any(v > 0 for v in holdings.values()):
             for m in missed:
@@ -715,8 +730,9 @@ def scheduler_loop():
         # 每天 00:00 重置
         if now == '00:00' and _sent_today:
             _sent_today.clear()
+            _daily_count[0] = 0
             save_sent_log(_sent_today)
-            print("[Scheduler] 新的一天，已发送记录已重置")
+            print("[Scheduler] 新的一天，已发送记录+计数器已重置")
 
         scheduled = load_schedule()
 
