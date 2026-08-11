@@ -246,30 +246,38 @@ def fetch_eastmoney(secid):
 
 
 def fetch_sina(sina_code):
-    """新浪美股行情（稳定、无鉴权、纯文本）"""
+    """新浪美股行情（稳定、无鉴权、纯文本）
+    字段顺序: 名称,最新价,涨跌额,时间,涨跌幅,开盘价,最高价,最低价,成交量,昨日收盘价,...
+
+    注: 新浪美股 API 直接给出 c/d/dp，无需算昨收，昨收 = c - d
+    """
     url = f"https://hq.sinajs.cn/list={sina_code}"
     req = urllib.request.Request(url)
     req.add_header('Referer', 'https://finance.sina.com.cn')
     with urllib.request.urlopen(req, timeout=8) as resp:
         raw = resp.read().decode('gbk')
-    # 格式: var hq_str_gb_xxxx="名称,价格,涨跌额,涨跌幅,日期,时间,开盘,最高,最低,昨收,..."
     if '=""' in raw or '=' not in raw:
         return None
     fields = raw.split('"')[1].split(',')
-    if len(fields) < 10:
+    if len(fields) < 8:
         return None
-    price = float(fields[1])
-    prev_close = float(fields[9]) if fields[9] else price
-    change = round(price - prev_close, 4)
-    change_pct = round(change / prev_close * 100, 4) if prev_close > 0 else 0
+    price = float(fields[1]) if fields[1] else 0
+    change = float(fields[2]) if fields[2] else 0
+    change_pct = float(fields[4]) if fields[4] else 0
+    open_price = float(fields[5]) if fields[5] else price
+    high = float(fields[6]) if fields[6] else price
+    low = float(fields[7]) if fields[7] else price
+    prev_close = price - change  # 新浪美股没有直接给昨收，用最新价-涨跌额算
+    if price <= 0:
+        return None
     return {
         'c': price,
         'd': change,
         'dp': change_pct,
-        'h': float(fields[6]) if fields[6] else price,
-        'l': float(fields[7]) if fields[7] else price,
-        'o': float(fields[5]) if fields[5] else price,
-        'pc': prev_close,
+        'h': high,
+        'l': low,
+        'o': open_price,
+        'pc': round(prev_close, 4),
         't': int(time.time())
     }
 
