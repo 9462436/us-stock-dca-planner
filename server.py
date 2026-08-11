@@ -59,10 +59,14 @@ print(f"[Config] GITHUB_TOKEN: {'已配置 (' + GITHUB_TOKEN[:8] + '...)' if GIT
 DEFAULT_SCHEDULED_TIMES = [f'{h:02d}:{m:02d}' for h in range(24) for m in (0, 30)]
 SCHEDULE_FILE = os.path.join(STATIC_DIR, 'schedule.json')
 EMAIL_LOG_FILE = os.path.join(STATIC_DIR, 'email_log.json')
+SENT_LOG_FILE = os.path.join(STATIC_DIR, 'sent_log.json')
 
 _cache = {}
 _email_lock = threading.Lock()
 _market_cache = {}  # 大盘数据独立缓存 (3min TTL)
+_sent_today = None       # 跨线程共享：当日已发送 HH:MM 集合
+_last_send_time = None    # 最后一次发送时间 (datetime)  # 跨线程共享
+_start_time = time.time() # 服务器启动时间
 
 STOCKS = {
     'XQQI': {'secid': '105.XQQI', 'name': 'NEOS Nasdaq-100 High Income ETF'},
@@ -480,6 +484,28 @@ def save_holdings(h):
         threading.Thread(target=push_holdings_to_github, args=(h,), daemon=True).start()
 
 
+# ============ 持久化发送记录 ============
+def load_sent_log():
+    """读取今日已发送记录，日期变了自动清空"""
+    today = time.strftime('%Y-%m-%d', time.localtime())
+    try:
+        with open(SENT_LOG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if data.get('date') == today:
+            return set(data.get('sent', []))
+    except Exception:
+        pass
+    return set()
+
+def save_sent_log(sent_set):
+    """持久化今日已发送记录到磁盘，跨进程重启可恢复"""
+    today = time.strftime('%Y-%m-%d', time.localtime())
+    try:
+        with open(SENT_LOG_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'date': today, 'sent': sorted(sent_set)}, f, ensure_ascii=False)
+    except Exception:
+        pass
+
 def push_holdings_to_github(holdings):
     """通过 GitHub REST API 推送 holdings.json（避免 5 分钟延迟）"""
     import base64
@@ -619,12 +645,14 @@ def send_email(subject, body):
 
 
 def scheduler_loop():
-    """定时推送线程：用队列避免因发送耗时导致的漏发"""
+    """定时推送：队列模式 + 持久化已发送记录 + 启动时补发遗漏"""
+    global _sent_today, _last_send_time
     import queue as qmod
-    pending = qmod.Queue()  # 待发送队列
+    pending = qmod.Queue()
 
     def sender_worker():
-        """消费队列：逐一发送，失败重试一次"""
+        """消费队列：逐一发送，失败重试一次，成功后写持久化日志"""
+        global _last_send_time
         while True:
             task = pending.get()
             today_slot, now, holdings = task['today_slot'], task['now'], task['holdings']
@@ -642,6 +670,7 @@ def scheduler_loop():
                     time.sleep(3)
             status = 'success' if ok else 'failed'
             msg = '已发送' if ok else f'失败(重试后): {err}'
+            _last_send_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
             print(f"[Scheduler] {msg} ({now})")
             append_email_log({
                 'time': f"{today_slot} {now}",
@@ -656,39 +685,59 @@ def scheduler_loop():
             })
             pending.task_done()
 
-    # 启动消费线程
     threading.Thread(target=sender_worker, daemon=True).start()
 
-    sent_today = set()
+    # 加载持久化已发送记录
+    _sent_today = load_sent_log()
+    today = time.strftime('%Y-%m-%d', time.localtime())
+    print(f"[Scheduler] 恢复今日已发送: {len(_sent_today)} 个时间点")
+
+    # 启动时补发：找出从 00:00 到现在已错过的时间点
+    scheduled = load_schedule()
+    now = time.strftime('%H:%M', time.localtime())
+    missed = [t for t in scheduled if t < now and t not in _sent_today]
+    if missed:
+        print(f"[Scheduler] 启动补发 {len(missed)} 个遗漏时间点: {', '.join(missed[:8])}{'...' if len(missed)>8 else ''}")
+        holdings = load_holdings()
+        if any(v > 0 for v in holdings.values()):
+            for m in missed:
+                _sent_today.add(m)
+                pending.put({'today_slot': today, 'now': m, 'holdings': dict(holdings)})
+            save_sent_log(_sent_today)
+        else:
+            print("[Scheduler] 无持仓，跳过补发")
+
+    # 主循环
     while True:
         now = time.strftime('%H:%M', time.localtime())
         today = time.strftime('%Y-%m-%d', time.localtime())
 
-        # 每天 00:00 清空今日发送记录
-        if now == '00:00':
-            sent_today.clear()
+        # 每天 00:00 重置
+        if now == '00:00' and _sent_today:
+            _sent_today.clear()
+            save_sent_log(_sent_today)
+            print("[Scheduler] 新的一天，已发送记录已重置")
 
         scheduled = load_schedule()
 
-        if now in scheduled:
-            key = f"{today}_{now}"
-            if key not in sent_today:
-                sent_today.add(key)
-                holdings = load_holdings()
-                if any(v > 0 for v in holdings.values()):
-                    pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings)})
-                    print(f"[Scheduler] 入队: {now}")
-                else:
-                    print(f"[Scheduler] 无持仓，跳过 ({now})")
-                    append_email_log({
-                        'time': f"{today} {now}",
-                        'status': 'skipped',
-                        'subject': '',
-                        'message': '无持仓'
-                    })
+        if now in scheduled and now not in _sent_today:
+            _sent_today.add(now)
+            save_sent_log(_sent_today)  # 立即持久化，防崩溃丢失
+            holdings = load_holdings()
+            if any(v > 0 for v in holdings.values()):
+                pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings)})
+                print(f"[Scheduler] 入队: {now}")
+            else:
+                print(f"[Scheduler] 无持仓，跳过 ({now})")
+                append_email_log({
+                    'time': f"{today} {now}",
+                    'status': 'skipped',
+                    'subject': '',
+                    'message': '无持仓'
+                })
 
-        # 每 20 秒检查一次（更密集，减少窗口遗漏）
-        time.sleep(20)
+        # 每 10 秒检查一次（更密集）
+        time.sleep(10)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
