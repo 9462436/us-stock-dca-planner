@@ -802,18 +802,55 @@ body::after {
   background: radial-gradient(ellipse at 30% 0%, rgba(37,99,235,0.03) 0%, transparent 60%);
   pointer-events:none; opacity:0; transition:opacity 0.5s;
 }
+.chart-card {
+  opacity:0; transform:translateY(12px);
+  animation: chartFadeIn 0.5s cubic-bezier(0.22,1,0.36,1) forwards;
+  will-change: opacity, transform;
+}
+.chart-card:nth-child(1) { animation-delay: 0.05s; }
+.chart-card:nth-child(2) { animation-delay: 0.10s; }
+.chart-card:nth-child(3) { animation-delay: 0.15s; }
+.chart-card:nth-child(4) { animation-delay: 0.20s; }
+.chart-card:nth-child(5) { animation-delay: 0.25s; }
+.chart-card:nth-child(6) { animation-delay: 0.30s; }
+.chart-card:nth-child(7) { animation-delay: 0.35s; }
+.chart-card:nth-child(8) { animation-delay: 0.40s; }
+@keyframes chartFadeIn {
+  to { opacity:1; transform:translateY(0); }
+}
 .chart-card:hover {
+  transform:translateY(-4px) scale(1.01);
   box-shadow:
-    0 4px 8px rgba(0,0,0,0.04),
-    0 12px 32px rgba(0,0,0,0.07);
-  border-color: rgba(37,99,235,0.15);
+    0 4px 12px rgba(0,0,0,0.05),
+    0 12px 32px rgba(0,0,0,0.08),
+    0 0 0 1px rgba(37,99,235,0.12);
+  border-color: rgba(37,99,235,0.25);
 }
 .chart-card:hover::before { opacity:1; }
 .chart-card h3 {
   font-size:13px; color:var(--text); font-weight:700; margin-bottom:10px;
   letter-spacing:-0.01em; position:relative; z-index:2;
 }
-.chart-box { width:100%; height:240px; position:relative; z-index:2; }
+.chart-box {
+  width:100%; height:240px; position:relative; z-index:2;
+  overflow:hidden;
+}
+.chart-box.loading::after {
+  content:''; position:absolute; inset:0; z-index:1;
+  background:linear-gradient(90, 150px, 30%, 100%);
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.35) 50%,
+    transparent 100%);
+  background-size:200% 100%;
+  animation:chartShimmer 1.8s infinite;
+  pointer-events:none;
+}
+
+@keyframes chartShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
 
 /* Monte Carlo Panel */
 .mc-card h3 {
@@ -1668,13 +1705,17 @@ input:checked + .toggle-slider:before {
 .index-card {
   display:flex; align-items:center; justify-content:space-between;
   padding:18px 22px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4));
+  background: linear-gradient(135deg, rgba(255,255,255,0.65), rgba(255,255,255,0.45));
   border:1px solid var(--border); border-radius:var(--radius);
   transition: all 0.3s cubic-bezier(0.22,1,0.36,1);
   backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
   box-shadow: 0 1px 2px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.6);
-  cursor:default;
-  position:relative; overflow:hidden;
+  cursor:default; position:relative; overflow:hidden;
+}
+:root[data-theme="dark"] .index-card,
+:root[data-theme="auto"][data-auto="dark"] .index-card {
+  background: linear-gradient(135deg, rgba(31,41,59,0.8), rgba(17,24,39,0.65));
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .index-card::after {
   content:''; position:absolute; inset:0;
@@ -1684,22 +1725,32 @@ input:checked + .toggle-slider:before {
 .index-card:hover::after { opacity:1; }
 .index-card:hover {
   border-color: rgba(37,99,235,0.3);
-  transform: translateY(-3px);
+  transform: translateY(-3px) scale(1.02);
   box-shadow: 0 8px 24px rgba(37,99,235,0.12), 0 2px 8px rgba(0,0,0,0.04);
 }
 .index-card .idx-info { display:flex; flex-direction:column; gap:4px; }
-.index-card .idx-name { font-size:13px; font-weight:800; color:var(--text); letter-spacing:-0.01em; }
+.index-card .idx-name { font-size:13px; font-weight:800; color:var(--text); letter-spacing:-0.01em); }
+.index-card .idx-name::after {
+  content:attr(data-color); position:absolute; right:0; top:0;
+  font-size:9px; width:6px; height:6px; border-radius:50%;
+  display:inline-block; margin-left:4px;
+}
 .index-card .idx-cn   { font-size:10px; color:var(--text-dim); }
 .index-card .idx-right { text-align:right; display:flex; flex-direction:column; gap:2px; }
-.index-card .idx-price { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-0.015em; }
+.index-card .idx-price { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-0.015em); }
 .index-card .idx-change { font-size:12px; font-weight:700; }
 .index-card .idx-change-bar {
-  height:3px; border-radius:2px; margin-top:4px; background:var(--border);
+  height:4px; border-radius:2px; margin-top:6px; background:var(--border);
   position:relative; min-width:60px; overflow:hidden;
 }
 .index-card .idx-change-bar-fill {
-  height:100%; border-radius:2px; position:absolute; left:50%; top:0;
-  transition: width 0.4s ease, background 0.4s ease;
+  height:100%; border-radius:2px; position:absolute; left:0; top:0; width:50%;
+  background:linear-gradient(90deg, var(--green), var(--accent));
+  transition: width 0.5s ease, background 0.5s ease;
+}
+.index-card .idx-change-bar:after {
+  content:''; position:absolute; top:-1px; left:50%; width:2px;
+  height:6px; background:var(--text-dim); border-radius:1px;
 }
 
 /* Sectors Section */
@@ -1714,16 +1765,20 @@ input:checked + .toggle-slider:before {
 .sector-card {
   display:flex; align-items:center; gap:10px; padding:14px 16px;
   border-radius:12px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.35));
+  background: linear-gradient(135deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4));
   border:1px solid var(--border);
   transition: all 0.25s cubic-bezier(0.22,1,0.36,1);
   backdrop-filter: blur(8px) saturate(160%); -webkit-backdrop-filter: blur(8px) saturate(160%);
   box-shadow: 0 1px 2px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.5);
-  cursor:default;
-  position:relative; overflow:hidden;
+  cursor:default; position:relative; overflow:hidden;
+}
+:root[data-theme="dark"] .sector-card,
+:root[data-theme="auto"][data-auto="dark"] .sector-card {
+  background: linear-gradient(135deg, rgba(31,41,59,0.75), rgba(17,24,39,0.6));
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .sector-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.03);
   border-color: rgba(37,99,235,0.25);
   box-shadow: 0 6px 18px rgba(37,99,235,0.1);
 }
@@ -1744,8 +1799,9 @@ input:checked + .toggle-slider:before {
   position:relative; overflow:hidden;
 }
 .sector-bar-fill {
-  height:100%; border-radius:2px; position:absolute; left:50%; top:0;
-  transition: width 0.4s ease, background 0.4s ease;
+  height:100%; border-radius:2px; position:absolute; left:0; top:0; width:50%;
+  background:linear-gradient(90deg, var(--cyan), var(--accent));
+  transition: width 0.5s ease, background 0.5s ease;
 }
 
 /* Market Breadth */
@@ -2133,17 +2189,17 @@ input:checked + .toggle-slider:before {
 
   <!-- Charts -->
   <div class="charts-grid">
-    <div class="chart-card"><h3><span class="sec-tag tag-blue">PORTFOLIO</span> 投资组合总价值变化</h3><div class="chart-box" id="chartValue"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-green">DIVIDEND</span> 累计股息 vs 累计投入</h3><div class="chart-box" id="chartDividend"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-gold">CASHFLOW</span> 年度现金流（支出 vs 分红）</h3><div class="chart-box" id="chartCashflow"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-cyan">ALLOCATION</span> 各标的持仓价值占比</h3><div class="chart-box" id="chartAllocation"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-purple">RETURNS</span> 年化收益率趋势</h3><div class="chart-box" id="chartReturn"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-blue">PORTFOLIO</span> 投资组合总价值变化</h3><div class="chart-box loading" id="chartValue"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-green">DIVIDEND</span> 累计股息 vs 累计投入</h3><div class="chart-box loading" id="chartDividend"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-gold">CASHFLOW</span> 年度现金流（支出 vs 分红）</h3><div class="chart-box loading" id="chartCashflow"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-cyan">ALLOCATION</span> 各标的持仓价值占比</h3><div class="chart-box loading" id="chartAllocation"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-purple">RETURNS</span> 年化收益率趋势</h3><div class="chart-box loading" id="chartReturn"></div></div>
   </div>
 
   <!-- 第二行图表：现金流热度 + 净值曲线 + 水下图 -->
   <div class="charts-grid">
-    <div class="chart-card"><h3><span class="sec-tag tag-gold">HEATMAP</span> 月度分红覆盖率热力图</h3><div class="chart-box" id="chartHeatmap"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-blue">DRAWDOWN</span> 净值曲线 vs 水下回撤</h3><div class="chart-box" id="chartDrawdown"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-gold">HEATMAP</span> 月度分红覆盖率热力图</h3><div class="chart-box loading" id="chartHeatmap"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-blue">DRAWDOWN</span> 净值曲线 vs 水下回撤</h3><div class="chart-box loading" id="chartDrawdown"></div></div>
     <div class="chart-card mc-card">
       <h3>
         <span class="sec-tag tag-cyan">MONTE CARLO</span> 价格预测引擎 · 蒙特卡洛模拟
@@ -2163,7 +2219,7 @@ input:checked + .toggle-slider:before {
           <button class="refresh-btn mc-run" id="mcRunBtn" style="padding:6px 14px;font-size:11px;"><span class="rf-icon">↻</span> 运行模拟</button>
         </span>
       </h3>
-      <div class="chart-box" id="chartMonteCarlo"></div>
+      <div class="chart-box loading" id="chartMonteCarlo"></div>
       <div class="mc-stats" id="mcStats"></div>
     </div>
   </div>
@@ -2453,44 +2509,48 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 const stockConfigs = [
   {
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
-    divPerShare: 0.75, divFreq: 'monthly',   // 月分红 ~$0.75，年化约 $9.0，股息率 ~18%
+    divPerShare: 0.75, divFreq: 'monthly',   // 月分红 ~$0.75，年化约 $9.0
     erosionRate: 6, allocation: 0,           // NAV 年侵蚀 ~6%
-    // 长期可持续参数（用于模拟）
-    sustainableYield: 0.12,  // 长期可持续股息率 12%
-    expectedPriceReturn: -0.02, // 长期价格年化 -2%（侵蚀部分未被股息覆盖）
+    // 长期可持续参数：分红率 + 价格回报 ≈ -侵蚀率
+    sustainableYield: 0.09,  // 长期可持续股息率 9%
+    expectedPriceReturn: -0.03, // 长期价格年化 -3%（9% - 3% = 6% 总回报，对冲 6% 侵蚀）
+    annualVol: 0.22,           // 年化波动率
     color: '#3b82f6', colorClass: 'c-xqqi'
   },
   {
     ticker: 'NVDY', name: 'YieldMax NVDA Option Income ETF',
-    divPerShare: 0.08, divFreq: 'weekly',    // 周分红 ~$0.08，年化约 $4.16，当前股息率 ~33%
-    erosionRate: 17, allocation: 20,          // NAV 年侵蚀 ~17%（单股+高波动）
-    // 长期可持续参数：单股 covered call 在牛市中侵蚀极大，分红会被削减
-    sustainableYield: 0.18,  // 长期可持续股息率 18%（分红会随 NAV 下降而削减）
-    expectedPriceReturn: -0.08, // 长期价格年化 -8%
+    divPerShare: 0.08, divFreq: 'weekly',    // 周分红 ~$0.08
+    erosionRate: 17, allocation: 20,          // NAV 年侵蚀 ~17%
+    sustainableYield: 0.11,  // 长期可持续股息率 11%（单股高波动，分红随 NAV 衰减）
+    expectedPriceReturn: -0.06, // 长期价格年化 -6%（11% - 6% = 5% 总回报，对冲 17% 侵蚀→净 -12%）
+    annualVol: 0.45,           // 单股极高波动
     color: '#22c55e', colorClass: 'c-nvdy'
   },
   {
     ticker: 'AMZY', name: 'YieldMax AMZN Option Income ETF',
-    divPerShare: 0.07, divFreq: 'weekly',    // 周分红 ~$0.07，年化约 $3.64，当前股息率 ~31%
+    divPerShare: 0.07, divFreq: 'weekly',    // 周分红 ~$0.07
     erosionRate: 18, allocation: 20,          // NAV 年侵蚀 ~18%
-    sustainableYield: 0.16,  // 长期可持续股息率 16%
-    expectedPriceReturn: -0.08, // 长期价格年化 -8%
+    sustainableYield: 0.10,  // 长期可持续股息率 10%
+    expectedPriceReturn: -0.08, // 长期价格年化 -8%（10% - 8% = 2% 总回报，对冲 18% 侵蚀→净 -16%）
+    annualVol: 0.40,           // 单股高波动
     color: '#f59e0b', colorClass: 'c-amzy'
   },
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
-    divPerShare: 0.60, divFreq: 'monthly',   // 月分红 ~$0.60，年化约 $7.2，股息率 ~24%
-    erosionRate: 10, allocation: 20,          // NAV 年侵蚀 ~10%（0DTE 策略上涨捕获少）
-    sustainableYield: 0.14,  // 长期可持续股息率 14%
-    expectedPriceReturn: -0.04, // 长期价格年化 -4%
+    divPerShare: 0.60, divFreq: 'monthly',   // 月分红 ~$0.60
+    erosionRate: 10, allocation: 20,          // NAV 年侵蚀 ~10%
+    sustainableYield: 0.11,  // 长期可持续股息率 11%（0DTE 策略分红相对稳定）
+    expectedPriceReturn: -0.01, // 长期价格年化 -1%（11% - 1% = 10% 总回报，对冲 10% 侵蚀→约持平）
+    annualVol: 0.25,           // 宽基指数波动
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
   {
     ticker: 'SPYM', name: 'YieldMax S&P 500 Option Income ETF',
-    divPerShare: 0.35, divFreq: 'monthly',   // 月分红 ~$0.35，年化约 $4.2，股息率 ~4.6%
-    erosionRate: 4, allocation: 0,            // NAV 年侵蚀 ~4%（标普500 covered call 长期微负）
-    sustainableYield: 0.08,  // 长期可持续股息率 8%（标普500 期权金较稳定）
-    expectedPriceReturn: 0.03, // 长期价格年化 +3%（标普长期上涨抵消部分侵蚀）
+    divPerShare: 0.35, divFreq: 'monthly',   // 月分红 ~$0.35
+    erosionRate: 4, allocation: 0,            // NAV 年侵蚀 ~4%
+    sustainableYield: 0.07,  // 长期可持续股息率 7%
+    expectedPriceReturn: 0.03, // 长期价格年化 +3%（7% + 3% = 10% 总回报，对冲 4% 侵蚀→净 +6%）
+    annualVol: 0.18,           // 标普500 低波动
     color: '#06b6d4', colorClass: 'c-spym'
   }
 ];
@@ -3213,37 +3273,30 @@ function calculate() {
   const taxRate = 0.10;
   const totalMonths = 20 * 12;
 
-  // 年化波动率（期权收益型 ETF 15-20%）
-  const annualVol = 0.18;
-  const monthlyVol = annualVol / Math.sqrt(12);
-
-  // === 波动率动态分红模型 ===
-  // YieldMax 类 ETF 的核心：期权金收入 ∝ 隐含波动率
-  // 长期均值 VIX ≈ 18，当前 VIX ≈ 18-20
-  // 分红率 = 基础可持续分红率 × (当前波动率 / 长期均值波动率) ^ 弹性系数
-  // 弹性系数 ≈ 0.6-0.8（实证：波动率翻倍时分红约增加 50-70%）
-  const VIX_LONG_TERM = 18;
-  const VOL_ELASTICITY = 0.7;  // 分红对波动率的弹性
-  const VOL_FLOOR = 0.3;       // 最低分红保底 30%（避免极端低波动归零）
-  const VOL_CAP = 2.0;         // 最高分红封顶 2 倍（风控上限）
+  // === 简化且稳健的模型：固定可持续参数，不做波动率动态分红 ===
+  // YieldMax 类 ETF 核心特征：高分红 + 高侵蚀，长期总回报 ≈ 市场回报 - 费用 - 结构性拖累
+  // 关键约束：sustainableYield + expectedPriceReturn ≈ -erosionRate/100 （内部一致性）
 
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
   const stocks = stockConfigs.map(s => {
     const q = quotes[s.ticker];
     const px = (q && q.c > 0) ? q.c : 50;
-    // 基础可持续分红率（长期均值波动率下的分红率）
-    const baseDivYield = s.sustainableYield || s.divPerShare * 12 / px;
-    const monthlyReturn = (s.expectedPriceReturn !== undefined
+    // 使用配置的可持续参数，不做运行时动态调整
+    const baseDivYield = s.sustainableYield || 0.10;
+    const monthlyPriceRet = (s.expectedPriceReturn !== undefined
       ? s.expectedPriceReturn / 12
       : -s.erosionRate / 100 / 12);
+    // 年化波动率（用于蒙特卡洛/随机噪声）
+    const annualVol = s.annualVol || 0.25;
     return {
       ...s,
       allocation: totalAlloc > 0 ? s.allocation / totalAlloc : 0.2,
       shares: 0, costBasis: 0,
       totalDividendsEarned: 0,
       price: px, initialPrice: px,
-      baseDivYield: baseDivYield,  // 存储基础分红率
-      monthlyReturn: monthlyReturn
+      baseDivYield: baseDivYield,
+      monthlyPriceRet: monthlyPriceRet,
+      annualVol: annualVol
     };
   });
 
@@ -3254,22 +3307,15 @@ function calculate() {
   const rng = () => { rngSeed = (rngSeed * 16807 + 0) % 2147483647; return rngSeed / 2147483647; };
   const randn = () => { let u=rng(),v=rng(); return Math.sqrt(-2*Math.log(u||0.0001))*Math.cos(2*Math.PI*v); };
 
-  // GARCH(1,1) 波动率动态模型
-  // σ²_t = ω + α * ε²_{t-1} + β * σ²_{t-1}
-  // 长期年化 18% → 月度方差 = 0.18²/12 = 0.0027
-  // 标准参数：α=0.10, β=0.85, ω = longVar*(1-α-β) = 0.0027*0.05 = 0.000135
-  const LONG_VAR = (annualVol * annualVol) / 12;  // 长期月度方差
-  const GARCH_ALPHA = 0.10;  // 冲击响应
-  const GARCH_BETA = 0.85;   // 持续性
-  const GARCH_OMEGA = LONG_VAR * (1 - GARCH_ALPHA - GARCH_BETA);
-  let currentVar = LONG_VAR;  // 当前条件方差
-  let lastReturn = 0;         // 上期收益率（用于计算冲击）
+  // 组合层面年化波动率（加权平均）
+  const portfolioAnnualVol = stocks.reduce((sum, s) => sum + s.allocation * s.annualVol, 0);
+  const portfolioMonthlyVol = portfolioAnnualVol / Math.sqrt(12);
 
   for (let m = 0; m < totalMonths; m++) {
     let totalUSD = monthlyInvestRMB / safeFx;
     let monthInvestedUSD = 0;
 
-    // 固定买入
+    // 固定买入：XQQI 5股/月，SPYM 2股/月
     const xqqi = stocks.find(s => s.ticker === 'XQQI');
     if (xqqi && totalUSD >= 5 * xqqi.price) {
       xqqi.shares += 5; xqqi.costBasis += 5 * xqqi.price;
@@ -3281,7 +3327,7 @@ function calculate() {
       monthInvestedUSD += 2 * spym.price; totalUSD -= 2 * spym.price;
     }
 
-    // 权重分配
+    // 权重分配剩余资金：NVDY/AMZY/QDTE
     const varStocks = stocks.filter(s => ['NVDY','AMZY','QDTE'].includes(s.ticker));
     const varTotalAlloc = varStocks.reduce((a,s)=>a+s.allocation,0);
     for (const st of varStocks) {
@@ -3291,48 +3337,33 @@ function calculate() {
     }
     cumulativeInvestedRMB += monthInvestedUSD * safeFx;
 
-    // === GARCH(1,1) 波动率更新 ===
-    if (m > 0) {
-      // 计算上期标准化冲击
-      const shock = lastReturn / Math.sqrt(currentVar);
-      // GARCH 更新：新方差 = ω + α * (上期收益²) + β * 旧方差
-      // 等价于：ω + α * (shock² * 旧方差) + β * 旧方差
-      currentVar = GARCH_OMEGA + GARCH_ALPHA * (lastReturn * lastReturn) + GARCH_BETA * currentVar;
-      currentVar = Math.max(LONG_VAR * 0.2, Math.min(LONG_VAR * 5, currentVar)); // 限制在长期均值的 0.2x-5x
-    }
-    const effectiveVol = Math.sqrt(currentVar * 12); // 年化波动率
-
-    // ===== 股息计算 & 自动再投资（波动率动态调整）=====
+    // ===== 股息计算：固定可持续分红率，无波动率放大 =====
     for (const st of stocks) {
       if (st.shares <= 0) continue;
-      // 动态分红率 = 基础分红率 × (当前波动率 / 长期波动率) ^ 弹性
-      const volRatio = effectiveVol / annualVol;
-      const volMultiplier = Math.max(VOL_FLOOR, Math.min(VOL_CAP, Math.pow(volRatio, VOL_ELASTICITY)));
-      const dynamicDivYield = st.baseDivYield * volMultiplier;
-      
-      const divPerShare = st.price * (dynamicDivYield / 12);
+      // 直接用可持续分红率，不随波动率放大
+      const divPerShare = st.price * (st.baseDivYield / 12);
       const gross = st.shares * divPerShare;
       const net = gross * (1 - taxRate);
       st.totalDividendsEarned += net;
-      // 自动再投资：税后股息买入更多股
+      // 自动再投资（DRIP）
       st.shares += net / st.price;
       st.costBasis += net;
     }
 
-    // ===== 价格变动：预期回报 + 随机噪声 =====
+    // ===== 价格变动：预期价格回报 + 随机噪声 =====
+    // 生成一个组合层面的共同冲击，个股加上特有噪声
+    const commonShock = randn() * portfolioMonthlyVol;
     for (const st of stocks) {
-      const noise = randn() * Math.sqrt(currentVar);
-      const monthlyRet = st.monthlyReturn + noise;
+      const idioShock = randn() * (st.annualVol / Math.sqrt(12)) * 0.3; // 30% 特质波动
+      const monthlyRet = st.monthlyPriceRet + commonShock + idioShock;
       st.price *= (1 + monthlyRet);
       if (st.price < 0.01) st.price = 0.01;
-      // 记录组合层面的收益率用于下期 GARCH
-      if (st.ticker === 'XQQI') lastReturn = monthlyRet; // 用最大权重标的作为代理
     }
 
     let portfolioValueUSD = 0;
     for (const st of stocks) portfolioValueUSD += st.shares * st.price;
     const portfolioValueRMB = portfolioValueUSD * safeFx;
-    const totalValueRMB = portfolioValueRMB;
+    const totalValueRMB = portfolioValueRMB; // 股息已再投资入股价
     const elapsed = m + 1;
     const years = elapsed / 12;
     const cagr = cumulativeInvestedRMB>0 ? (Math.pow(totalValueRMB/cumulativeInvestedRMB,1/years)-1)*100 : 0;
@@ -3609,6 +3640,8 @@ function renderCharts() {
 }
 
 function renderOrUpdate(id, option) {
+  const card = document.getElementById(id)?.parentElement;
+  if (card) card.classList.remove('loading');
   if (chartInstances[id]) {
     try { chartInstances[id].dispose(); } catch(e) {}
   }
