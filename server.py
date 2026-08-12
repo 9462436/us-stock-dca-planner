@@ -736,6 +736,13 @@ def scheduler_loop():
                 pending.task_done()
                 continue
             today_slot, now, holdings = task['today_slot'], task['now'], task['holdings']
+
+            # ⚠️ 防重：距上次发送 < 90 秒且任务来源是补发（boot_ts 存在）则跳过
+            if task.get('boot_ts') and _last_send_time and (time.time() - _last_send_time < 90):
+                print(f"[Scheduler] 防重: 距上次发送 < 90s，跳过补发 {now}")
+                pending.task_done()
+                continue
+
             ok = False
             for attempt in range(2):
                 try:
@@ -774,6 +781,9 @@ def scheduler_loop():
 
     # 启动时补发：只补发最近遗漏的 1 封（最近一个已过的时间点）
     # Render 部署会清空磁盘，sent_log 不可靠，限制补发量防止刷邮箱
+    # ⚠️ 关键：用启动时间戳标记"启动后入队窗口"，避免重启后旧定时又触发一遍
+    boot_ts = time.time()
+    # 只补发当前 schedule 里的时间点（防止旧 schedule 时间点被补发）
     scheduled = load_schedule()
     now = time.strftime('%H:%M', time.localtime())
     now_minutes = int(now[:2]) * 60 + int(now[3:])
@@ -789,7 +799,7 @@ def scheduler_loop():
         if any(v > 0 for v in holdings.values()):
             for m in missed:
                 _sent_today.add(m)
-                pending.put({'today_slot': today, 'now': m, 'holdings': dict(holdings)})
+                pending.put({'today_slot': today, 'now': m, 'holdings': dict(holdings), 'boot_ts': boot_ts})
             save_sent_log(_sent_today)
         else:
             print("[Scheduler] 无持仓，跳过补发")
@@ -806,14 +816,17 @@ def scheduler_loop():
             save_sent_log(_sent_today)
             print("[Scheduler] 新的一天，已发送记录+计数器已重置")
 
+        # 重新加载 schedule（支持运行时修改）
         scheduled = load_schedule()
 
+        # ⚠️ 防双触发：now 必须真的"刚到"该时间点
+        # 主保护：_sent_today 已标记过的不再触发
         if now in scheduled and now not in _sent_today:
             _sent_today.add(now)
             save_sent_log(_sent_today)  # 立即持久化，防崩溃丢失
             holdings = load_holdings()
             if any(v > 0 for v in holdings.values()):
-                pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings)})
+                pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings), 'boot_ts': boot_ts})
                 print(f"[Scheduler] 入队: {now}")
             else:
                 print(f"[Scheduler] 无持仓，跳过 ({now})")
