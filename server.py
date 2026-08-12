@@ -682,16 +682,16 @@ def generate_report(holdings=None):
         total_value += val
         total_pnl += pnl
 
-        sign = '+' if pnl >= 0 else ''
+        sign = '+' if pnl >= 0 else '-'
         lines.append(
             f"{ticker:<6} {shares:>5}股  ${price:>8.2f}  "
-            f"¥{val:>10,.0f}  {sign}¥{pnl:>8,.0f}  {sign}{pnl_pct:.2f}%"
+            f"¥{val:>10,.2f}  {sign}¥{abs(pnl):>8,.2f}  {sign}{abs(pnl_pct):.2f}%"
         )
 
     lines.append("=" * 40)
-    lines.append(f"总市值   ¥{total_value:,.0f}")
-    sign = '+' if total_pnl >= 0 else ''
-    lines.append(f"今日盈亏  {sign}¥{total_pnl:,.0f}")
+    lines.append(f"总市值   ¥{total_value:,.2f}")
+    sign = '+' if total_pnl >= 0 else '-'
+    lines.append(f"今日盈亏  {sign}¥{abs(total_pnl):,.2f}")
     lines.append(f"美元汇率  $1 = ¥{fx:.4f}")
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
