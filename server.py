@@ -83,6 +83,12 @@ STOCKS = {
     'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'YieldMax S&P 500 Option Income ETF'},
 }
 
+# 月定投策略配置（复星账户执行）
+# XQQI 固定 5 股 + SPYM 固定 2 股，剩余资金均分给 NVDY/AMZY/QDTE
+DCA_MONTHLY_RMB = float(os.environ.get('MONTHLY_INVEST_RMB', '7000'))
+DCA_FIXED_SHARES = [('XQQI', 5), ('SPYM', 2)]
+DCA_REST_TICKERS = ['NVDY', 'AMZY', 'QDTE']
+
 # 默认持仓（如果服务器端没有同步过，用这些）
 DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0}
 
@@ -603,6 +609,38 @@ def push_holdings_to_github(holdings):
         print(f"[GitHub] 推送失败: {e}")
 
 
+def build_dca_plan(quotes, fx):
+    """基于月定投金额 + 当前价格，计算本月建议买入清单"""
+    total_usd = DCA_MONTHLY_RMB / fx
+    plan = []
+
+    # 固定买入
+    for ticker, n in DCA_FIXED_SHARES:
+        q = quotes.get(ticker)
+        if q and q.get('c', 0) > 0:
+            price = q['c']
+            cost = n * price
+            if total_usd >= cost:
+                plan.append({'ticker': ticker, 'shares': n, 'price': price, 'cost': cost})
+                total_usd -= cost
+
+    # 剩余均分给 NVDY/AMZY/QDTE
+    rest = [t for t in DCA_REST_TICKERS]
+    per = total_usd / len(rest) if rest else 0
+    for ticker in rest:
+        q = quotes.get(ticker)
+        if q and q.get('c', 0) > 0:
+            price = q['c']
+            n = int(per / price)
+            if n > 0:
+                cost = n * price
+                plan.append({'ticker': ticker, 'shares': n, 'price': price, 'cost': cost})
+
+    total_cost = sum(p['cost'] for p in plan)
+    leftover = DCA_MONTHLY_RMB / fx - total_cost
+    return plan, total_cost, leftover
+
+
 def generate_report(holdings=None):
     """生成持仓日报文本"""
     if holdings is None:
@@ -646,6 +684,25 @@ def generate_report(holdings=None):
     sign = '+' if total_pnl >= 0 else ''
     lines.append(f"今日盈亏  {sign}¥{total_pnl:,.0f}")
     lines.append(f"美元汇率  $1 = ¥{fx:.4f}")
+
+    # ---- 本月定投买入建议（复星账户） ----
+    try:
+        plan, plan_cost, plan_left = build_dca_plan(quotes, fx)
+        if plan:
+            lines.append("")
+            lines.append("-" * 40)
+            lines.append(f"本月定投计划  (¥{DCA_MONTHLY_RMB:,.0f}/月)")
+            for p in plan:
+                lines.append(
+                    f"  {p['ticker']:<6} 买 {p['shares']:>3} 股  "
+                    f"@${p['price']:.2f}  ≈${p['cost']:.2f}"
+                )
+            lines.append(f"  合计 ≈${plan_cost:.2f}  (≈¥{plan_cost * fx:,.0f})")
+            if plan_left > 1:
+                lines.append(f"  剩余 ${plan_left:.2f} 滚入下月")
+    except Exception as e:
+        print(f"[DCA] 定投计划生成失败: {e}")
+
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
 
