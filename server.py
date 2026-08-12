@@ -684,25 +684,6 @@ def generate_report(holdings=None):
     sign = '+' if total_pnl >= 0 else ''
     lines.append(f"今日盈亏  {sign}¥{total_pnl:,.0f}")
     lines.append(f"美元汇率  $1 = ¥{fx:.4f}")
-
-    # ---- 本月定投买入建议（复星账户） ----
-    try:
-        plan, plan_cost, plan_left = build_dca_plan(quotes, fx)
-        if plan:
-            lines.append("")
-            lines.append("-" * 40)
-            lines.append(f"本月定投计划  (¥{DCA_MONTHLY_RMB:,.0f}/月)")
-            for p in plan:
-                lines.append(
-                    f"  {p['ticker']:<6} 买 {p['shares']:>3} 股  "
-                    f"@${p['price']:.2f}  ≈${p['cost']:.2f}"
-                )
-            lines.append(f"  合计 ≈${plan_cost:.2f}  (≈¥{plan_cost * fx:,.0f})")
-            if plan_left > 1:
-                lines.append(f"  剩余 ${plan_left:.2f} 滚入下月")
-    except Exception as e:
-        print(f"[DCA] 定投计划生成失败: {e}")
-
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
 
