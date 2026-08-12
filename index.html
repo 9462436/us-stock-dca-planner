@@ -4216,8 +4216,15 @@ function renderSummary() {
     </div>
     <div class="summary-card" style="border:1px solid var(--accent);border-left:3px solid var(--accent);box-shadow:0 0 0 1px rgba(37,99,235,0.05)">
       <div class="label">${yearLabel}月均股息</div>
-      <div class="value" style="color:var(--green)">¥${(last.cumulativeDividendsRMB / last.month).toFixed(0)}/月</div>
-      <div class="sub">月被动现金流</div>
+      <div class="value" style="color:var(--green)">¥${(() => {
+        // 显示"最后一年"的月均股息（该年实际现金流），而非全程平均（会被早期零分红拉低）
+        if (data.length > 12) {
+          const yearAgo = data[data.length - 13];
+          return Math.round((last.cumulativeDividendsRMB - yearAgo.cumulativeDividendsRMB) / 12).toLocaleString();
+        }
+        return Math.round(last.cumulativeDividendsRMB / Math.max(last.month, 1)).toLocaleString();
+      })()}/月</div>
+      <div class="sub">当年实际月被动现金流</div>
     </div>
   `;
 
@@ -4920,8 +4927,16 @@ function animateSummaryCards(last, monthlyInvest) {
   animateValue(cards[5], 0, parseFloat(cards[5].textContent) || 0, 600, v => v.toFixed(1) + '%');
   // 7. Calmar
   animateValue(cards[6], 0, parseFloat(cards[6].textContent) || 0, 600, v => v.toFixed(2));
-  // 8. 月均股息
-  animateValue(cards[7], 0, last.cumulativeDividendsRMB / last.month, 700, v => '¥' + Math.round(v).toLocaleString() + '/月');
+  // 8. 月均股息（最后一年实际月均，非全程平均）
+  const data = getFilteredData();
+  let monthlyDivAvg;
+  if (data.length > 12) {
+    const yearAgo = data[data.length - 13];
+    monthlyDivAvg = (last.cumulativeDividendsRMB - yearAgo.cumulativeDividendsRMB) / 12;
+  } else {
+    monthlyDivAvg = last.cumulativeDividendsRMB / Math.max(last.month, 1);
+  }
+  animateValue(cards[7], 0, monthlyDivAvg, 700, v => '¥' + Math.round(v).toLocaleString() + '/月');
 }
 async function refreshAll(silent = true) {
   // silent=true（默认）：自动轮询，静默更新，无 toast 无闪烁
