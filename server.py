@@ -737,12 +737,6 @@ def scheduler_loop():
                 continue
             today_slot, now, holdings = task['today_slot'], task['now'], task['holdings']
 
-            # ⚠️ 防重：距上次发送 < 90 秒且任务来源是补发（boot_ts 存在）则跳过
-            if task.get('boot_ts') and _last_send_time and (time.time() - _last_send_time < 90):
-                print(f"[Scheduler] 防重: 距上次发送 < 90s，跳过补发 {now}")
-                pending.task_done()
-                continue
-
             ok = False
             for attempt in range(2):
                 try:
@@ -781,9 +775,13 @@ def scheduler_loop():
 
     # 启动时补发：只补发最近遗漏的 1 封（最近一个已过的时间点）
     # Render 部署会清空磁盘，sent_log 不可靠，限制补发量防止刷邮箱
-    # ⚠️ 关键：用启动时间戳标记"启动后入队窗口"，避免重启后旧定时又触发一遍
+    # ⚠️ 关键：服务器启动 5 分钟内不补发（防止 Render 自动重启/部署时短时间内反复触发）
     boot_ts = time.time()
-    # 只补发当前 schedule 里的时间点（防止旧 schedule 时间点被补发）
+    boot_seconds = int(os.environ.get('BOOT_SECONDS', '0'))  # 可通过环境变量覆盖
+    if boot_seconds == 0:
+        # 默认：启动 300 秒（5 分钟）内不补发
+        boot_seconds = 300
+
     scheduled = load_schedule()
     now = time.strftime('%H:%M', time.localtime())
     now_minutes = int(now[:2]) * 60 + int(now[3:])
@@ -793,13 +791,21 @@ def scheduler_loop():
         if t not in _sent_today and t < now
     ], key=lambda t: int(t[:2]) * 60 + int(t[3:]), reverse=True)
     missed = past_times[:1]  # 只取最近的那一封
+
+    # ⚠️ 启动早期窗口内跳过补发（防止重启风暴）
+    if missed:
+        startup_age = time.time() - _start_time
+        if startup_age < boot_seconds:
+            print(f"[Scheduler] 启动仅 {int(startup_age)}s，跳过补发（防重启风暴，需等 {boot_seconds}s）")
+            missed = []  # 清空，不补发
+
     if missed:
         print(f"[Scheduler] 启动补发 {len(missed)} 个遗漏时间点: {', '.join(missed)}")
         holdings = load_holdings()
         if any(v > 0 for v in holdings.values()):
             for m in missed:
                 _sent_today.add(m)
-                pending.put({'today_slot': today, 'now': m, 'holdings': dict(holdings), 'boot_ts': boot_ts})
+                pending.put({'today_slot': today, 'now': m, 'holdings': dict(holdings), 'boot_ts': boot_ts, 'is_retry': True})
             save_sent_log(_sent_today)
         else:
             print("[Scheduler] 无持仓，跳过补发")
