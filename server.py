@@ -830,42 +830,9 @@ def scheduler_loop():
     today = time.strftime('%Y-%m-%d', time.localtime())
     print(f"[Scheduler] 恢复今日已发送: {len(_sent_today)} 个时间点")
 
-    # 启动时补发：只补发最近遗漏的 1 封（最近一个已过的时间点）
-    # Render 部署会清空磁盘，sent_log 不可靠，限制补发量防止刷邮箱
-    # ⚠️ 关键：服务器启动 5 分钟内不补发（防止 Render 自动重启/部署时短时间内反复触发）
-    boot_ts = time.time()
-    boot_seconds = int(os.environ.get('BOOT_SECONDS', '0'))  # 可通过环境变量覆盖
-    if boot_seconds == 0:
-        # 默认：启动 300 秒（5 分钟）内不补发
-        boot_seconds = 300
-
-    scheduled = load_schedule()
-    now = time.strftime('%H:%M', time.localtime())
-    now_minutes = int(now[:2]) * 60 + int(now[3:])
-    # 找最近一个已过但未发的时间点
-    past_times = sorted([
-        t for t in scheduled
-        if t not in _sent_today and t < now
-    ], key=lambda t: int(t[:2]) * 60 + int(t[3:]), reverse=True)
-    missed = past_times[:1]  # 只取最近的那一封
-
-    # ⚠️ 启动早期窗口内跳过补发（防止重启风暴）
-    if missed:
-        startup_age = time.time() - _start_time
-        if startup_age < boot_seconds:
-            print(f"[Scheduler] 启动仅 {int(startup_age)}s，跳过补发（防重启风暴，需等 {boot_seconds}s）")
-            missed = []  # 清空，不补发
-
-    if missed:
-        print(f"[Scheduler] 启动补发 {len(missed)} 个遗漏时间点: {', '.join(missed)}")
-        holdings = load_holdings()
-        if any(v > 0 for v in holdings.values()):
-            for m in missed:
-                _sent_today.add(m)
-                pending.put({'today_slot': today, 'now': m, 'holdings': dict(holdings), 'boot_ts': boot_ts, 'is_retry': True})
-            save_sent_log(_sent_today)
-        else:
-            print("[Scheduler] 无持仓，跳过补发")
+    # 启动时补发：已禁用（防止 Render 部署时多实例同时触发）
+    # 用户每小时都收邮件，漏一封影响不大；补发逻辑在 rolling deploy 时会刷邮箱
+    print(f"[Scheduler] 启动补发已禁用（防多实例并发发送），等待下一个整点")
 
     # 主循环
     while True:
@@ -882,14 +849,20 @@ def scheduler_loop():
         # 重新加载 schedule（支持运行时修改）
         scheduled = load_schedule()
 
-        # ⚠️ 防双触发：now 必须真的"刚到"该时间点
-        # 主保护：_sent_today 已标记过的不再触发
+        # ⚠️ 防双触发：60秒窗口内不重复发送（防 rolling deploy 多实例并发）
         if now in scheduled and now not in _sent_today:
+            # 检查距上次发送是否 < 60 秒
+            if _last_send_time:
+                last_ts = time.mktime(time.strptime(_last_send_time, '%Y-%m-%d %H:%M:%S'))
+                if time.time() - last_ts < 60:
+                    time.sleep(10)
+                    continue
+
             _sent_today.add(now)
-            save_sent_log(_sent_today)  # 立即持久化，防崩溃丢失
+            save_sent_log(_sent_today)
             holdings = load_holdings()
             if any(v > 0 for v in holdings.values()):
-                pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings), 'boot_ts': boot_ts})
+                pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings)})
                 print(f"[Scheduler] 入队: {now}")
             else:
                 print(f"[Scheduler] 无持仓，跳过 ({now})")
