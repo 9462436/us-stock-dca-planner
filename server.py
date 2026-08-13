@@ -676,8 +676,8 @@ def generate_report(holdings=None):
             continue
         price = q['c']
         prev = q.get('pc', price)
-        val = shares * price * fx
-        pnl = shares * (price - prev) * fx
+        val = shares * price          # 市值（美元）
+        pnl = shares * (price - prev)  # 盈亏（美元）
         pnl_pct = (price - prev) / prev * 100 if prev > 0 else 0
         total_value += val
         total_pnl += pnl
@@ -685,13 +685,13 @@ def generate_report(holdings=None):
         sign = '+' if pnl >= 0 else '-'
         lines.append(
             f"{ticker:<6} {shares:>5}股  ${price:>8.2f}  "
-            f"¥{val:>10,.2f}  {sign}¥{abs(pnl):>8,.2f}  {sign}{abs(pnl_pct):.2f}%"
+            f"市值 ${val:>10,.2f}  {sign}${abs(pnl):>8,.2f}  {sign}{abs(pnl_pct):.2f}%"
         )
 
     lines.append("=" * 40)
-    lines.append(f"总市值   ¥{total_value:,.2f}")
+    lines.append(f"总市值   ${total_value:,.2f}")
     sign = '+' if total_pnl >= 0 else '-'
-    lines.append(f"今日盈亏  {sign}¥{abs(total_pnl):,.2f}")
+    lines.append(f"今日盈亏  {sign}${abs(total_pnl):,.2f}")
     lines.append(f"美元汇率  $1 = ¥{fx:.4f}")
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
