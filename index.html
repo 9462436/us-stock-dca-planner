@@ -4383,9 +4383,10 @@ function renderPortfolioSnapshot() {
       shares = price > 0 ? remaining * w / price : 0;
     }
     const valueRMB = shares * price * safeFx;
-    const dayChange = valueRMB * changePct / 100;
+    // 日盈亏用美元口径：股数 × (今价 - 昨收)，与 pc/dp 字段一致
+    const dayChangeUSD = shares * (price - pc);
     totalValueRMB += valueRMB;
-    totalChange += dayChange;
+    totalChange += dayChangeUSD;
     // 迷你日内区间条
     let miniBar = '';
     if (price > 0 && h > l) {
@@ -4404,6 +4405,9 @@ function renderPortfolioSnapshot() {
   }).filter(Boolean);
 
   const isUp = totalChange >= 0;
+  const totalChangePct = totalValueRMB > 0
+    ? (totalChange * safeFx) / (totalValueRMB - totalChange * safeFx) * 100
+    : 0;
   el.style.display = 'flex';
   el.innerHTML = `
     <div class="ps-item">
@@ -4415,15 +4419,15 @@ function renderPortfolioSnapshot() {
     <div class="ps-item">
       <div class="ps-label">今日变动</div>
       <div class="ps-value" style="color:${isUp ? '#dc2626' : '#059669'};">
-        ${isUp ? '+' : ''}¥${Math.round(totalChange).toLocaleString()}
+        ${isUp ? '+' : ''}$${Math.abs(totalChange).toFixed(2)}
       </div>
-      <div class="ps-sub"><span class="ps-tag ${isUp ? 'up' : 'down'}">${isUp ? '▲' : '▼'} ${(totalChange / totalValueRMB * 100).toFixed(2)}%</span></div>
+      <div class="ps-sub"><span class="ps-tag ${isUp ? 'up' : 'down'}">${isUp ? '▲' : '▼'} ${Math.abs(totalChangePct).toFixed(2)}%</span></div>
     </div>
     <div class="ps-sep"></div>
     ${items.map(s => `
       <div class="ps-item" style="min-width:90px;">
         <div class="ps-label" style="color:${s.color};">${s.ticker}</div>
-        <div class="ps-value" style="font-size:15px;">${s.shares} <span style="font-size:10px;color:var(--text-dim);">股</span></div>
+        <div class="ps-value" style="font-size:15px;">${Number.isInteger(s.shares) ? s.shares : s.shares.toFixed(2)} <span style="font-size:10px;color:var(--text-dim);">股</span></div>
         <div class="ps-sub">$${s.price.toFixed(2)}</div>
         ${s.miniBar}
         <div class="ps-sub"><span class="ps-tag ${s.changePct >= 0 ? 'up' : 'down'}">${s.changePct >= 0 ? '+' : ''}${s.changePct.toFixed(2)}%</span></div>
@@ -4526,7 +4530,7 @@ function renderRebalance() {
     : '当前权重偏离 < 5%，无需调仓。';
 
   content.innerHTML = '<div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">'
-    + summaryText + ' 总市值 ¥' + Math.round(totalActualUSD * safeFx).toLocaleString() + '。'
+    + summaryText + ' 总市值 $' + totalActualUSD.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) + '。'
     +'</div>'
     + '<table class="rebalance-table">'
     +   '<thead><tr><th>标的</th><th>目标权重</th><th>实际权重</th><th>偏离</th><th>当前股数</th><th>目标股数</th><th>建议操作</th</tr</thead>'
@@ -4636,10 +4640,10 @@ function renderHoldings() {
     const price = (q && q.c > 0) ? q.c : 0;
     const prevClose = (q && q.pc > 0) ? q.pc : price;
     const shares = holdings[s.ticker] || 0;
-    const valueRMB = shares * price * safeFx;
-    const pnl = shares * (price - prevClose) * safeFx;
+    const valueUSD = shares * price;                       // 市值（美元）
+    const pnl = shares * (price - prevClose);              // 今日盈亏（美元）
     const pnlPct = prevClose > 0 && shares > 0 ? ((price - prevClose) / prevClose * 100) : 0;
-    totalValue += valueRMB;
+    totalValue += valueUSD;
     totalPnl += pnl;
 
     // 成本均价：基于历史价格的简单均价（取近 30 天均值近似）
@@ -4649,17 +4653,14 @@ function renderHoldings() {
       const samples = history.slice(-30).map(h => h.c).filter(c => c > 0);
       if (samples.length > 0) avgCost = samples.reduce((a,b)=>a+b,0) / samples.length;
     }
-    const costBasisRMB = shares * avgCost * safeFx;
-    const unrealized = shares > 0 ? (price - avgCost) * shares * safeFx : 0;
+    const unrealized = shares > 0 ? (price - avgCost) * shares : 0;  // 浮动盈亏（美元）
     const unrealizedPct = shares > 0 && avgCost > 0 ? ((price - avgCost) / avgCost * 100) : 0;
 
-    // 累计股息（按当前持仓 × 月股息 × 持有月数估计，简化为持有月数 = max(0, 当前价 - 成本))
+    // 累计股息（按当前持仓 × 月股息 × 12个月估计，美元）
     const monthlyDivUSD = s.divPerShare * (s.divFreq === 'weekly' ? 52/12 : s.divFreq === 'monthly' ? 1 : 1/3);
-    // 用近 30 天价格的方差作为 "持仓月数估计"（简化：假设持有 1 年起）
     const monthsHeld = 12; // 简化假设持有 12 个月
     const accruedDivUSD = shares * monthlyDivUSD * monthsHeld * (1 - 0.10);
-    const accruedDivRMB = accruedDivUSD * safeFx;
-    totalDivPnl += accruedDivRMB;
+    totalDivPnl += accruedDivUSD;
 
     // 年化股息率（基于当前价）
     const annDiv = s.divFreq === 'weekly' ? s.divPerShare * 52 : s.divFreq === 'monthly' ? s.divPerShare * 12 : s.divPerShare * 4;
@@ -4672,8 +4673,8 @@ function renderHoldings() {
     // 持仓 sparkline
     const sparkSvg = renderSparkline(history.map(h => h.c).filter(c => c > 0));
 
-    // 分红覆盖率（基于今日市值）
-    const divPct = valueRMB > 0 ? Math.min(100, (accruedDivRMB / valueRMB * 100)) : 0;
+    // 分红覆盖率（基于今日市值，美元口径）
+    const divPct = valueUSD > 0 ? Math.min(100, (accruedDivUSD / valueUSD * 100)) : 0;
 
     const isUp = pnl >= 0;
     const unrealizedUp = unrealized >= 0;
@@ -4688,10 +4689,10 @@ function renderHoldings() {
         </div>
       </div>
       ${shares > 0 ? `
-        <div class="holding-value">¥${Math.round(valueRMB).toLocaleString()}</div>
+        <div class="holding-value">$${valueUSD.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="holding-pnl" style="color:${isUp ? '#dc2626' : '#059669'}">
-          <span class="pnl-amount">${isUp ? '+' : ''}¥${Math.round(pnl).toLocaleString()}</span>
-          <span style="font-size:10px;">${isUp ? '+' : ''}${pnlPct.toFixed(2)}%</span>
+          <span class="pnl-amount">${isUp ? '+' : '-'}$${Math.abs(pnl).toFixed(2)}</span>
+          <span style="font-size:10px;">${isUp ? '+' : '-'}${Math.abs(pnlPct).toFixed(2)}%</span>
           <span style="font-size:9px;color:var(--text-dim);font-weight:400;margin-left:2px;">今日</span>
         </div>
         <div class="holding-meta">
@@ -4706,8 +4707,8 @@ function renderHoldings() {
           <div class="holding-meta-item">
             <span class="holding-meta-label">浮动盈亏</span>
             <span class="holding-meta-value" style="color:${unrealizedUp ? '#dc2626' : '#059669'}">
-              ${unrealizedUp ? '+' : ''}¥${Math.round(unrealized).toLocaleString()}
-              <span style="font-size:9px;">(${unrealizedUp ? '+' : ''}${unrealizedPct.toFixed(1)}%)</span>
+              ${unrealizedUp ? '+' : '-'}$${Math.abs(unrealized).toFixed(2)}
+              <span style="font-size:9px;">(${unrealizedUp ? '+' : '-'}${Math.abs(unrealizedPct).toFixed(1)}%)</span>
             </span>
           </div>
           <div class="holding-meta-item">
@@ -4717,7 +4718,7 @@ function renderHoldings() {
           <div class="holding-meta-item" style="grid-column:span 2;">
             <span class="holding-meta-label">累计分红 (12个月估)</span>
             <span class="holding-meta-value" style="color:var(--green);display:flex;align-items:center;gap:6px;">
-              ¥${Math.round(accruedDivRMB).toLocaleString()}
+              $${accruedDivUSD.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}
               <span style="flex:1;min-width:60px;">
                 <span class="div-progress"><span class="div-progress-fill" style="width:${divPct}%"></span></span>
               </span>
@@ -4742,10 +4743,10 @@ function renderHoldings() {
   }).join('');
 
   const isUp = totalPnl >= 0;
-  totalEl.innerHTML = `总市值 <strong>¥${Math.round(totalValue).toLocaleString()}</strong>
+  totalEl.innerHTML = `总市值 <strong>$${totalValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</strong>
     &nbsp;<span style="font-size:12px;color:${isUp ? '#dc2626' : '#059669'};font-weight:700;">
-    ${isUp ? '+' : ''}¥${Math.round(totalPnl).toLocaleString()}</span>
-    &nbsp;<span style="font-size:10px;color:var(--text-dim);">累计分红 ¥${Math.round(totalDivPnl).toLocaleString()}</span>`;
+    ${isUp ? '+' : '-'}$${Math.abs(totalPnl).toFixed(2)}</span>
+    &nbsp;<span style="font-size:10px;color:var(--text-dim);">累计分红 $${totalDivPnl.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`;
 
   // 有持仓时启用按钮
   const hasHoldings = Object.values(holdings).some(v => v > 0);
@@ -4777,18 +4778,18 @@ function generateReportText() {
     const prev = q?.pc || price;
     const shares = holdings[s.ticker] || 0;
     if (!shares || !price) return;
-    const val = shares * price * safeFx;
-    const pnl = shares * (price - prev) * safeFx;
+    const val = shares * price;                 // 美元市值
+    const pnl = shares * (price - prev);        // 美元盈亏
     const pnlPct = prev > 0 ? ((price - prev) / prev * 100) : 0;
     totalValue += val;
     totalPnl += pnl;
-    const sign = pnl >= 0 ? '+' : '';
-    report += `${s.ticker.padEnd(6)} ${String(shares).padStart(5)}股  $${price.toFixed(2)}  ¥${Math.round(val).toLocaleString().padStart(8)}  ${sign}¥${Math.round(pnl).toLocaleString().padStart(6)}  ${sign}${pnlPct.toFixed(2)}%\n`;
+    const sign = pnl >= 0 ? '+' : '-';
+    report += `${s.ticker.padEnd(6)} ${String(shares).padStart(5)}股  $${price.toFixed(2)}  $${val.toFixed(2).padStart(9)}  ${sign}$${Math.abs(pnl).toFixed(2).padStart(7)}  ${sign}${Math.abs(pnlPct).toFixed(2)}%\n`;
   });
 
   report += `━━━━━━━━━━━━━━━━━━━━\n`;
-  report += `总市值  ¥${Math.round(totalValue).toLocaleString()}\n`;
-  report += `今日盈亏 ${totalPnl >= 0 ? '+' : ''}¥${Math.round(totalPnl)}\n`;
+  report += `总市值  $${totalValue.toFixed(2)}\n`;
+  report += `今日盈亏 ${totalPnl >= 0 ? '+' : '-'}$${Math.abs(totalPnl).toFixed(2)}\n`;
   report += `美元汇率  $1 = ¥${safeFx.toFixed(4)}\n`;
   report += `更新于 ${timeStr}\n`;
   report += `── 策 · 美股定投助手`;
