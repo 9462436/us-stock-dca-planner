@@ -255,7 +255,9 @@ def fetch_sina(sina_code):
     """新浪美股行情（稳定、无鉴权、纯文本）
     字段顺序: 名称,最新价,涨跌额,时间,涨跌幅,开盘价,最高价,最低价,成交量,昨日收盘价,...
 
-    注: 新浪美股 API 直接给出 c/d/dp，无需算昨收，昨收 = c - d
+    关键: 对于 NAV 持续复权调整的 ETF（如 NVDY/AMZY 等期权收益型），
+    新浪 d 字段是「复权累计变动」（含分红除权），不是昨收差异。
+    直接用新浪给的 dp（涨跌幅）反推昨收：pc = c / (1 + dp/100)
     """
     url = f"https://hq.sinajs.cn/list={sina_code}"
     req = urllib.request.Request(url)
@@ -268,12 +270,13 @@ def fetch_sina(sina_code):
     if len(fields) < 8:
         return None
     price = float(fields[1]) if fields[1] else 0
-    change = float(fields[2]) if fields[2] else 0
     change_pct = float(fields[4]) if fields[4] else 0
     open_price = float(fields[5]) if fields[5] else price
     high = float(fields[6]) if fields[6] else price
     low = float(fields[7]) if fields[7] else price
-    prev_close = price - change  # 新浪美股没有直接给昨收，用最新价-涨跌额算
+    # 用 dp 反推昨收，避免 d 字段对高频分红 ETF 不可靠的问题
+    prev_close = price / (1 + change_pct / 100) if price > 0 else price
+    change = round(price - prev_close, 4)
     if price <= 0:
         return None
     return {
