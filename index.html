@@ -2512,76 +2512,48 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 const stockConfigs = [
   {
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
-    divPerShare: 0.75, divFreq: 'monthly',   // 月分红 ~$0.75，年化约 $9.0
-    erosionRate: 6, allocation: 0,           // NAV 年侵蚀 ~6%
-    // 长期可持续参数：分红率 + 价格回报 ≈ -侵蚀率
-    sustainableYield: 0.09,  // 长期可持续股息率 9%
-    expectedPriceReturn: -0.03, // 长期价格年化 -3%（9% - 3% = 6% 总回报，对冲 6% 侵蚀）
-    annualVol: 0.22,           // 年化波动率
+    divPerShare: 0.75, divFreq: 'monthly',   // 月分红 ~$0.75
+    erosionRate: 5, allocation: 0,           // NAV 年侵蚀 ~5%
+    sustainableYield: 0.10,  // 长期可持续股息率 10%
+    expectedPriceReturn: -0.02, // 长期价格年化 -2%（总回报≈8%）
+    annualVol: 0.20,           // 年化波动率
     color: '#3b82f6', colorClass: 'c-xqqi'
   },
   {
     ticker: 'NVDY', name: 'YieldMax NVDA Option Income ETF',
     divPerShare: 0.08, divFreq: 'weekly',    // 周分红 ~$0.08
-    erosionRate: 17, allocation: 20,          // NAV 年侵蚀 ~17%
-    sustainableYield: 0.11,  // 长期可持续股息率 11%（单股高波动，分红随 NAV 衰减）
-    expectedPriceReturn: -0.06, // 长期价格年化 -6%（11% - 6% = 5% 总回报，对冲 17% 侵蚀→净 -12%）
-    annualVol: 0.45,           // 单股极高波动
+    erosionRate: 12, allocation: 20,          // NAV 年侵蚀 ~12%（NVDA 强势背景下侵蚀放缓）
+    sustainableYield: 0.12,  // 长期可持续股息率 12%
+    expectedPriceReturn: -0.03, // 长期价格年化 -3%（总回报≈9%）
+    annualVol: 0.35,           // 单股高波动（但比 45% 更现实）
     color: '#22c55e', colorClass: 'c-nvdy'
   },
   {
     ticker: 'AMZY', name: 'YieldMax AMZN Option Income ETF',
     divPerShare: 0.07, divFreq: 'weekly',    // 周分红 ~$0.07
-    erosionRate: 18, allocation: 20,          // NAV 年侵蚀 ~18%
-    sustainableYield: 0.10,  // 长期可持续股息率 10%
-    expectedPriceReturn: -0.08, // 长期价格年化 -8%（10% - 8% = 2% 总回报，对冲 18% 侵蚀→净 -16%）
-    annualVol: 0.40,           // 单股高波动
+    erosionRate: 13, allocation: 20,          // NAV 年侵蚀 ~13%
+    sustainableYield: 0.11,  // 长期可持续股息率 11%
+    expectedPriceReturn: -0.04, // 长期价格年化 -4%（总回报≈7%）
+    annualVol: 0.32,           // 单股波动（但比 40% 更现实）
     color: '#f59e0b', colorClass: 'c-amzy'
   },
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
     divPerShare: 0.60, divFreq: 'monthly',   // 月分红 ~$0.60
-    erosionRate: 10, allocation: 20,          // NAV 年侵蚀 ~10%
-    sustainableYield: 0.11,  // 长期可持续股息率 11%（0DTE 策略分红相对稳定）
-    expectedPriceReturn: -0.01, // 长期价格年化 -1%（11% - 1% = 10% 总回报，对冲 10% 侵蚀→约持平）
-    annualVol: 0.25,           // 宽基指数波动
+    erosionRate: 8, allocation: 20,          // NAV 年侵蚀 ~8%
+    sustainableYield: 0.12,  // 长期可持续股息率 12%
+    expectedPriceReturn: 0.0,  // 长期价格年化 0%（总回报≈12%）
+    annualVol: 0.22,           // 宽基指数波动
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
   {
     ticker: 'SPYM', name: 'YieldMax S&P 500 Option Income ETF',
     divPerShare: 0.35, divFreq: 'monthly',   // 月分红 ~$0.35
-    erosionRate: 4, allocation: 0,            // NAV 年侵蚀 ~4%
-    sustainableYield: 0.07,  // 长期可持续股息率 7%
-    expectedPriceReturn: 0.03, // 长期价格年化 +3%（7% + 3% = 10% 总回报，对冲 4% 侵蚀→净 +6%）
-    annualVol: 0.18,           // 标普500 低波动
+    erosionRate: 3, allocation: 0,           // NAV 年侵蚀 ~3%
+    sustainableYield: 0.08,  // 长期可持续股息率 8%
+    expectedPriceReturn: 0.04, // 长期价格年化 +4%（总回报≈12%）
+    annualVol: 0.16,           // 标普500 低波动
     color: '#06b6d4', colorClass: 'c-spym'
-  },
-  {
-    ticker: 'MSFT', name: 'Microsoft (微软)', isStock: true,
-    divPerShare: 0.83, divFreq: 'quarterly', // 季分红 ~$0.83
-    erosionRate: 0, allocation: 10,           // 增值引擎，占组合10%
-    sustainableYield: 0.007,  // 股息率约 0.7%
-    expectedPriceReturn: 0.12, // 长期价格年化 +12%
-    annualVol: 0.25,
-    color: '#34d399', colorClass: 'c-msft'
-  },
-  {
-    ticker: 'GOOGL', name: 'Alphabet / Google (谷歌)', isStock: true,
-    divPerShare: 0.20, divFreq: 'quarterly', // 季分红 ~$0.20
-    erosionRate: 0, allocation: 10,           // 增值引擎，占组合10%
-    sustainableYield: 0.002,  // 股息率约 0.2%
-    expectedPriceReturn: 0.13, // 长期价格年化 +13%
-    annualVol: 0.28,
-    color: '#fbbf24', colorClass: 'c-googl'
-  },
-  {
-    ticker: 'AAPL', name: 'Apple (苹果)', isStock: true,
-    divPerShare: 0.25, divFreq: 'quarterly', // 季分红 ~$0.25
-    erosionRate: 0, allocation: 10,           // 增值引擎，占组合10%
-    sustainableYield: 0.004,  // 股息率约 0.4%
-    expectedPriceReturn: 0.10, // 长期价格年化 +10%
-    annualVol: 0.24,
-    color: '#f87171', colorClass: 'c-aapl'
   }
 ];
 
@@ -2591,10 +2563,7 @@ const fallbackQuotes = {
   'NVDY': { c: 12.34, d: 0.28, dp: 2.32, h: 12.345, l: 11.882, pc: 12.06, t: Date.now()/1000|0 },
   'AMZY': { c: 11.91, d: 0.40, dp: 3.48, h: 12.00, l: 11.67, pc: 11.51, t: Date.now()/1000|0 },
   'QDTE': { c: 28.99, d: 0.27, dp: 0.94, h: 29.02, l: 28.62, pc: 28.72, t: Date.now()/1000|0 },
-  'SPYM': { c: 90.47, d: -0.14, dp: -0.15, h: 90.85, l: 90.34, pc: 90.61, t: Date.now()/1000|0 },
-  'MSFT': { c: 495.45, d: 14.52, dp: 3.02, h: 497.0, l: 481.0, pc: 480.93, t: Date.now()/1000|0 },
-  'GOOGL': { c: 344.55, d: 3.44, dp: 1.01, h: 345.5, l: 339.0, pc: 341.11, t: Date.now()/1000|0 },
-  'AAPL': { c: 303.56, d: 3.91, dp: 1.31, h: 304.0, l: 297.0, pc: 299.65, t: Date.now()/1000|0 }
+  'SPYM': { c: 90.47, d: -0.14, dp: -0.15, h: 90.85, l: 90.34, pc: 90.61, t: Date.now()/1000|0 }
 };
 
 // ============ STATE ============
@@ -2758,14 +2727,8 @@ function renderPriceCards() {
   const xqqiCost = 5 * xqqiPrice;
   const spymCost = 2 * spymPrice;
 
-  // 资金分流：个股 30%，期权 ETF 70%
-  const stockUSD = totalUSD * 0.30;
-  const etfUSD = totalUSD - stockUSD;
-  const remainingUSD = Math.max(0, etfUSD - xqqiCost - spymCost);
-
-  // 个股权重归一化
-  const growthStocks = stockConfigs.filter(s => s.isStock);
-  const growthTotalAlloc = growthStocks.reduce((a, s) => a + s.allocation, 0) || 1;
+  // ETF 剩余资金（扣除 XQQI/SPYM 固定买入后）
+  const remainingUSD = Math.max(0, totalUSD - xqqiCost - spymCost);
 
   // NVDY / AMZY / QDTE 的权重归一化
   const varStocks = stockConfigs.filter(s => ['NVDY', 'AMZY', 'QDTE'].includes(s.ticker));
@@ -2785,15 +2748,9 @@ function renderPriceCards() {
                    s.divFreq === 'monthly' ? s.divPerShare * 12 :
                    s.divPerShare * 4;
     const yieldPct = price > 0 ? (annDiv / price * 100).toFixed(1) : '--';
-    // 月买入股数 + 月投入金额：个股按30%分流(碎股)，ETF固定股数 vs 剩余资金权重分
+    // 月买入股数 + 月投入金额：固定股数 vs 剩余资金权重分（碎股）
     let monthlyBuy, monthlyBuyUSD, monthlyBuyDisplay;
-    if (s.isStock) {
-      // 个股：按权重分 30% 资金（碎股，显示小数）
-      const gWeight = s.allocation / growthTotalAlloc;
-      monthlyBuyUSD = stockUSD * gWeight;
-      monthlyBuy = price > 0 ? monthlyBuyUSD / price : 0;
-      monthlyBuyDisplay = monthlyBuy.toFixed(4);
-    } else if (s.ticker === 'XQQI') {
+    if (s.ticker === 'XQQI') {
       monthlyBuy = 5;
       monthlyBuyUSD = xqqiCost;
       monthlyBuyDisplay = '5';
@@ -3145,17 +3102,10 @@ function renderEntryTiming() {
 
     // 建议金额 = 基础配置额 × 倍数
     let baseRMB;
-    if (s.isStock) {
-      // 个股：占 30% 资金，按权重分
-      const growthStocks = stockConfigs.filter(c => c.isStock);
-      const growthTotal = growthStocks.reduce((a, c) => a + c.allocation, 0) || 1;
-      const gw = s.allocation / growthTotal;
-      baseRMB = monthlyUSD * 0.30 * gw * safeFx;
-    } else if (s.ticker === 'XQQI') baseRMB = 5 * price * safeFx;
+    if (s.ticker === 'XQQI') baseRMB = 5 * price * safeFx;
     else if (s.ticker === 'SPYM') baseRMB = 2 * price * safeFx;
     else {
-      const etfMonthly = monthlyUSD * 0.70;
-      const remaining = Math.max(0, etfMonthly - 5 * (quotes['XQQI']?.c || 0) - 2 * (quotes['SPYM']?.c || 0));
+      const remaining = Math.max(0, monthlyUSD - 5 * (quotes['XQQI']?.c || 0) - 2 * (quotes['SPYM']?.c || 0));
       const varStocks = stockConfigs.filter(c => ['NVDY', 'AMZY', 'QDTE'].includes(c.ticker));
       const varTotal = varStocks.reduce((a, c) => a + c.allocation, 0);
       const w = varTotal > 0 ? s.allocation / varTotal : 1 / varStocks.length;
@@ -3372,45 +3322,24 @@ function calculate() {
     let totalUSD = monthlyInvestRMB / safeFx;
     let monthInvestedUSD = 0;
 
-    // === 资金分流：个股占 30%，期权 ETF 占 70% ===
-    const STOCK_RATIO = 0.30;
-    const stockUSD = totalUSD * STOCK_RATIO;
-    const etfUSD = totalUSD - stockUSD;
-
-    // --- 第一部分：个股（MSFT/GOOGL/AAPL）按权重分 30%（碎股买入）---
-    const growthStocks = stocks.filter(s => s.isStock);
-    const growthTotalAlloc = growthStocks.reduce((a, s) => a + s.allocation, 0) || 1;
-    for (const gs of growthStocks) {
-      const w = gs.allocation / growthTotalAlloc;
-      const budget = stockUSD * w;
-      // 碎股买入：科技蓝筹单价高，用小数股数充分利用资金
-      const canBuy = budget / gs.price;
-      if (canBuy > 0 && gs.price > 0) {
-        gs.shares += canBuy; gs.costBasis += budget;
-        monthInvestedUSD += budget;
-      }
-    }
-
-    // --- 第二部分：期权 ETF（70%）---
-    let etfRemain = etfUSD;
     // 固定买入：XQQI 5股/月，SPYM 2股/月
     const xqqi = stocks.find(s => s.ticker === 'XQQI');
-    if (xqqi && etfRemain >= 5 * xqqi.price) {
+    if (xqqi && totalUSD >= 5 * xqqi.price) {
       xqqi.shares += 5; xqqi.costBasis += 5 * xqqi.price;
-      monthInvestedUSD += 5 * xqqi.price; etfRemain -= 5 * xqqi.price;
+      monthInvestedUSD += 5 * xqqi.price; totalUSD -= 5 * xqqi.price;
     }
     const spym = stocks.find(s => s.ticker === 'SPYM');
-    if (spym && etfRemain >= 2 * spym.price) {
+    if (spym && totalUSD >= 2 * spym.price) {
       spym.shares += 2; spym.costBasis += 2 * spym.price;
-      monthInvestedUSD += 2 * spym.price; etfRemain -= 2 * spym.price;
+      monthInvestedUSD += 2 * spym.price; totalUSD -= 2 * spym.price;
     }
 
-    // 权重分配剩余 ETF 资金：NVDY/AMZY/QDTE（碎股买入，充分利用资金）
+    // 权重分配剩余资金：NVDY/AMZY/QDTE（碎股买入）
     const varStocks = stocks.filter(s => ['NVDY','AMZY','QDTE'].includes(s.ticker));
     const varTotalAlloc = varStocks.reduce((a,s)=>a+s.allocation,0);
     for (const st of varStocks) {
       const w = varTotalAlloc>0 ? st.allocation/varTotalAlloc : 1/varStocks.length;
-      const budget = etfRemain * w;
+      const budget = totalUSD * w;
       const canBuy = st.price > 0 ? budget / st.price : 0;
       if (canBuy > 0) { st.shares += canBuy; st.costBasis += budget; monthInvestedUSD += budget; }
     }
@@ -4442,18 +4371,12 @@ function renderPortfolioSnapshot() {
     if (!price) return null;
 
     let shares;
-    if (s.isStock) {
-      const growthStocks = stockConfigs.filter(c => c.isStock);
-      const growthTotal = growthStocks.reduce((a, c) => a + c.allocation, 0) || 1;
-      const gw = s.allocation / growthTotal;
-      shares = price > 0 ? (monthlyInvestRMB / safeFx * 0.30 * gw) / price : 0;
-    } else if (s.ticker === 'XQQI') shares = 5;
+    if (s.ticker === 'XQQI') shares = 5;
     else if (s.ticker === 'SPYM') shares = 2;
     else {
       const xqqiP = (quotes['XQQI']?.c || 0);
       const spymP = (quotes['SPYM']?.c || 0);
-      const etfMonthly = monthlyInvestRMB / safeFx * 0.70;
-      const remaining = Math.max(0, etfMonthly - 5 * xqqiP - 2 * spymP);
+      const remaining = Math.max(0, monthlyInvestRMB / safeFx - 5 * xqqiP - 2 * spymP);
       const varStocks = stockConfigs.filter(c => ['NVDY','AMZY','QDTE'].includes(c.ticker));
       const varTotal = varStocks.reduce((a,c)=>a+c.allocation,0);
       const w = varTotal > 0 ? s.allocation / varTotal : 1/3;
@@ -4530,18 +4453,11 @@ function renderRebalance() {
   const xqqiPrice = quotes['XQQI']?.c || 50;
   const spymPrice = quotes['SPYM']?.c || 90;
   const fixedUSD = 5 * xqqiPrice + 2 * spymPrice;
-  const etfUSD = totalUSD * 0.70;
-  const stockUSD = totalUSD * 0.30;
-  const remainingUSD = Math.max(0, etfUSD - fixedUSD);
-
-  const growthStocks = stockConfigs.filter(c => c.isStock);
-  const growthTotal = growthStocks.reduce((a, c) => a + c.allocation, 0) || 1;
+  const remainingUSD = Math.max(0, totalUSD - fixedUSD);
 
   const targetWeights = {};
   stockConfigs.forEach(s => {
-    if (s.isStock) {
-      targetWeights[s.ticker] = stockUSD * (s.allocation / growthTotal);
-    } else if (s.ticker === 'XQQI') targetWeights[s.ticker] = 5 * xqqiPrice;
+    if (s.ticker === 'XQQI') targetWeights[s.ticker] = 5 * xqqiPrice;
     else if (s.ticker === 'SPYM') targetWeights[s.ticker] = 2 * spymPrice;
     else targetWeights[s.ticker] = remainingUSD / 3;
   });
