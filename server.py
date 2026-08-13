@@ -1081,20 +1081,26 @@ if __name__ == '__main__':
     print(f"[Boot] 定时推送已启动: {', '.join(scheduled[:6])}... (共 {len(scheduled)} 个时间点)", flush=True)
 
     # Render 免费版 15 分钟休眠 → 每 14 分钟自 ping 一次保持活跃
-    # 用公网 URL 才能被 Render 的流量检测识别为活跃
-    PUBLIC_URL = os.environ.get('RENDER_EXTERNAL_URL', '') or os.environ.get('PUBLIC_URL', '')
+    # 必须走公网 URL（经 Render LB 才计为活跃流量），127.0.0.1 回环无效
+    # Render 自动提供 RENDER_EXTERNAL_HOSTNAME（如 xxx.onrender.com），
+    # RENDER_EXTERNAL_URL 不一定有，自己构造
+    PUBLIC_URL = (
+        os.environ.get('RENDER_EXTERNAL_URL')
+        or os.environ.get('PUBLIC_URL')
+        or (f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}" if os.environ.get('RENDER_EXTERNAL_HOSTNAME') else '')
+    )
     def keep_alive():
         while True:
-            time.sleep(14 * 60)
+            time.sleep(10 * 60)  # 10 分钟一次，比 15 分钟休眠窗口更保险
             try:
-                # 优先公网 URL，否则本地回环（本地运行时也保持线程存活）
-                url = f"{PUBLIC_URL}/api/fx" if PUBLIC_URL else f"http://127.0.0.1:{PORT}/api/fx"
+                url = f"{PUBLIC_URL}/api/health" if PUBLIC_URL else f"http://127.0.0.1:{PORT}/api/health"
                 urllib.request.urlopen(url, timeout=10)
-            except Exception:
-                pass
+                print(f"[KeepAlive] ping {url} OK", flush=True)
+            except Exception as e:
+                print(f"[KeepAlive] ping 失败: {e}", flush=True)
     ka = threading.Thread(target=keep_alive, daemon=True)
     ka.start()
-    print(f"[KeepAlive] 每 14 分钟自 ping 防休眠 (target: {PUBLIC_URL or 'local'})")
+    print(f"[KeepAlive] 每 10 分钟自 ping 防休眠 (target: {PUBLIC_URL or 'local'})", flush=True)
 
     print(f"\n{'='*50}")
     print(f"  美股定投工具 — 本地代理服务器")
