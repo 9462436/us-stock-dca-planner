@@ -81,6 +81,9 @@ STOCKS = {
     'AMZY': {'secid': '107.AMZY', 'sina': 'gb_amzy', 'name': 'YieldMax AMZN Option Income ETF'},
     'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF'},
     'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'YieldMax S&P 500 Option Income ETF'},
+    'MSFT': {'secid': '105.MSFT', 'sina': 'gb_msft', 'name': 'Microsoft'},
+    'GOOGL': {'secid': '105.GOOGL', 'sina': 'gb_googl', 'name': 'Alphabet (Google)'},
+    'AAPL': {'secid': '105.AAPL', 'sina': 'gb_aapl', 'name': 'Apple'},
 }
 
 # 月定投策略配置（复星账户执行）
@@ -90,7 +93,7 @@ DCA_FIXED_SHARES = [('XQQI', 5), ('SPYM', 2)]
 DCA_REST_TICKERS = ['NVDY', 'AMZY', 'QDTE']
 
 # 默认持仓（如果服务器端没有同步过，用这些）
-DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0}
+DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0, 'MSFT': 0, 'GOOGL': 0, 'AAPL': 0}
 
 # 派息信息（用于报表生成）
 DIV_INFO = {
@@ -99,6 +102,9 @@ DIV_INFO = {
     'AMZY':  {'div': 0.07, 'freq': 'weekly'},
     'QDTE':  {'div': 0.60, 'freq': 'monthly'},
     'SPYM':  {'div': 0.35, 'freq': 'monthly'},
+    'MSFT':  {'div': 0.83, 'freq': 'quarterly'},
+    'GOOGL': {'div': 0.20, 'freq': 'quarterly'},
+    'AAPL':  {'div': 0.25, 'freq': 'quarterly'},
 }
 
 # 大盘指数配置
