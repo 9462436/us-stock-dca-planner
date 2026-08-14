@@ -34,7 +34,8 @@ PORT = int(os.environ.get('PORT', 8080))  # Render 云部署：自动读取 PORT
 ALT_PORT = int(os.environ.get('PORT', 8081))
 STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
 FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg'
-CACHE_TTL = 120
+CACHE_TTL = 300  # 增加缓存TTL至5分钟（原120s），减少外部API调用频率
+MARKET_CACHE_TTL = 180  # 大盘数据缓存3分钟（原60s），减少市场数据请求频率
 
 # 邮箱配置
 SMTP_HOST = 'smtp.163.com'
@@ -389,9 +390,9 @@ _MARKET_DEBUG = True
 
 
 def get_market_data():
-    """获取大盘指数 + 热门板块 + 情绪数据 (60秒缓存)"""
+    """获取大盘指数 + 热门板块 + 情绪数据 (180秒缓存)"""
     now = time.time()
-    if _market_cache.get('ts') and now - _market_cache['ts'] < 60:
+    if _market_cache.get('ts') and now - _market_cache['ts'] < MARKET_CACHE_TTL:
         return _market_cache['data']
 
     # 构建 secid 映射（保持 cfg_dict 形式供 wrap_section 使用）
@@ -476,6 +477,98 @@ def get_market_data():
     return data
 
 
+def fetch_sina_with_timeout(sina_code, timeout=5):
+    """带超时的新浪行情获取"""
+    url = f"https://hq.sinajs.cn/list={sina_code}"
+    req = urllib.request.Request(url)
+    req.add_header('Referer', 'https://finance.sina.com.cn')
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode('gbk')
+    except Exception as e:
+        return None, e
+    if '=""' in raw or '=' not in raw:
+        return None, None
+    fields = raw.split('"')[1].split(',')
+    if len(fields) < 8:
+        return None, None
+    try:
+        price = float(fields[1]) if fields[1] else 0
+        change_pct = float(fields[4]) if fields[4] else 0
+        open_price = float(fields[5]) if fields[5] else price
+        high = float(fields[6]) if fields[6] else price
+        low = float(fields[7]) if fields[7] else price
+        prev_close = price / (1 + change_pct / 100) if price > 0 else price
+        change = round(price - prev_close, 4)
+        if price <= 0:
+            return None, None
+        return {
+            'c': price,
+            'd': change,
+            'dp': change_pct,
+            'h': high,
+            'l': low,
+            'o': open_price,
+            'pc': round(prev_close, 4),
+            't': int(time.time())
+        }, None
+    except (ValueError, IndexError) as e:
+        return None, e
+
+
+def fetch_eastmoney_with_timeout(secid, timeout=5):
+    """带超时的EastMoney行情获取"""
+    url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f43,f44,f45,f46,f60,f169,f170"
+    req = urllib.request.Request(url)
+    req.add_header('User-Agent', 'Mozilla/5.0')
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = json.loads(resp.read().decode())
+        data = raw.get('data', {})
+        if not data or not data.get('f43'):
+            return None, None
+        price = data['f43'] / 1000
+        return {
+            'c': price,
+            'd': (data.get('f169', 0) or 0) / 1000,
+            'dp': (data.get('f170', 0) or 0) / 100,
+            'h': (data.get('f44', 0) or price * 1000) / 1000,
+            'l': (data.get('f45', 0) or price * 1000) / 1000,
+            'o': (data.get('f46', 0) or price * 1000) / 1000,
+            'pc': (data.get('f60', 0) or price * 1000) / 1000,
+            't': int(time.time())
+        }, None
+    except Exception as e:
+        return None, e
+
+
+def fetch_fx_with_timeout(timeout=8):
+    """带超时的汇率获取"""
+    # 优先 Yahoo Finance（实时，1 分钟延迟）
+    try:
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/USDCNY=X?interval=1m&range=1d"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+            result = data['chart']['result'][0]
+            price = result['meta'].get('regularMarketPrice')
+            if price:
+                return float(price), None
+    except Exception as e:
+        print(f"[FX] Yahoo 失败: {e}")
+
+    # 兜底：exchangerate-api.com（每日更新）
+    try:
+        url = "https://open.er-api.com/v6/latest/USD"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+            return data['rates']['CNY'], None
+    except Exception as e:
+        print(f"[FX] 兜底也失败: {e}")
+        return 6.75, None
+
+
 def get_all_quotes():
     now = time.time()
     if _cache.get('ts') and now - _cache['ts'] < CACHE_TTL:
@@ -483,29 +576,24 @@ def get_all_quotes():
 
     result = {}
     for ticker, info in STOCKS.items():
-        # 1. 新浪（最稳定）
-        try:
-            data = fetch_sina(info['sina'])
-            if data and data.get('c', 0) > 0:
-                result[ticker] = data
-                continue
-        except Exception as e:
-            print(f"[Sina:{ticker}] {e}")
+        # 并行尝试三个数据源，谁先成功用谁
+        # 1. 先尝试新浪（最稳定、无鉴权）
+        sina_data, sina_err = fetch_sina_with_timeout(info['sina'], timeout=5)
+        if sina_data and sina_data.get('c', 0) > 0:
+            result[ticker] = sina_data
+            continue
 
-        # 2. EastMoney（备选）
-        try:
-            data = fetch_eastmoney(info['secid'])
-            if data and data.get('c', 0) > 0:
-                result[ticker] = data
-                continue
-        except Exception as e:
-            print(f"[EastMoney:{ticker}] {e}")
+        # 2. 再尝试 EastMoney
+        em_data, em_err = fetch_eastmoney_with_timeout(info['secid'], timeout=5)
+        if em_data and em_data.get('c', 0) > 0:
+            result[ticker] = em_data
+            continue
 
-        # 3. Finnhub（兜底）
+        # 3. 最后才尝试 Finnhub（需要鉴权，作为兜底）
         try:
-            data = fetch_finnhub(ticker)
-            if data and data.get('c', 0) > 0:
-                result[ticker] = data
+            fh_data = fetch_finnhub(ticker)
+            if fh_data and fh_data.get('c', 0) > 0:
+                result[ticker] = fh_data
                 continue
         except Exception as e:
             print(f"[Finnhub:{ticker}] {e}")
@@ -515,11 +603,7 @@ def get_all_quotes():
     ok = sum(1 for v in result.values() if v)
     print(f"[Quotes] {ok}/{len(result)} stocks fetched at {time.strftime('%H:%M:%S')}")
 
-    fx = 6.75
-    try:
-        fx = fetch_fx()
-    except Exception as e:
-        print(f"[FX] fallback: {e}")
+    fx, fx_err = fetch_fx_with_timeout(timeout=8)
 
     _cache['ts'] = now
     _cache['data'] = {'quotes': result, 'fx': fx, 'ok': ok}
