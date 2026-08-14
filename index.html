@@ -2524,8 +2524,8 @@ const stockConfigs = [
     divPerShare: 0.08, divFreq: 'weekly',    // 周分红 ~$0.08
     erosionRate: 12, allocation: 20,          // NAV 年侵蚀 ~12%（NVDA 强势背景下侵蚀放缓）
     sustainableYield: 0.12,  // 长期可持续股息率 12%
-    expectedPriceReturn: -0.03, // 长期价格年化 -3%（总回报≈9%）
-    annualVol: 0.35,           // 单股高波动（但比 45% 更现实）
+    expectedPriceReturn: -0.02, // 长期价格年化 -3%（总回报≈9%）
+    annualVol: 0.22,           // 单股高波动（但比 45% 更现实）
     color: '#22c55e', colorClass: 'c-nvdy'
   },
   {
@@ -2533,8 +2533,8 @@ const stockConfigs = [
     divPerShare: 0.07, divFreq: 'weekly',    // 周分红 ~$0.07
     erosionRate: 13, allocation: 20,          // NAV 年侵蚀 ~13%
     sustainableYield: 0.11,  // 长期可持续股息率 11%
-    expectedPriceReturn: -0.04, // 长期价格年化 -4%（总回报≈7%）
-    annualVol: 0.32,           // 单股波动（但比 40% 更现实）
+    expectedPriceReturn: -0.02, // 长期价格年化 -4%（总回报≈7%）
+    annualVol: 0.20,           // 单股波动（但比 40% 更现实）
     color: '#f59e0b', colorClass: 'c-amzy'
   },
   {
@@ -2543,7 +2543,7 @@ const stockConfigs = [
     erosionRate: 8, allocation: 20,          // NAV 年侵蚀 ~8%
     sustainableYield: 0.12,  // 长期可持续股息率 12%
     expectedPriceReturn: 0.0,  // 长期价格年化 0%（总回报≈12%）
-    annualVol: 0.22,           // 宽基指数波动
+    annualVol: 0.18,           // 宽基指数波动
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
   {
@@ -3315,7 +3315,11 @@ function calculate() {
   const randn = () => { let u=rng(),v=rng(); return Math.sqrt(-2*Math.log(u||0.0001))*Math.cos(2*Math.PI*v); };
 
   // 组合层面年化波动率（加权平均）
-  const portfolioAnnualVol = stocks.reduce((sum, s) => sum + s.allocation * s.annualVol, 0);
+  // 组合��面年化波动率（加权平均，需除以总权重）
+  const totalAlloc = stocks.reduce((sum, s) => sum + s.allocation, 0);
+  const portfolioAnnualVol = totalAlloc > 0
+    ? stocks.reduce((sum, s) => sum + s.allocation * s.annualVol, 0) / totalAlloc
+    : 0;
   const portfolioMonthlyVol = portfolioAnnualVol / Math.sqrt(12);
 
   for (let m = 0; m < totalMonths; m++) {
