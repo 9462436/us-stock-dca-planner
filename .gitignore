@@ -8,6 +8,15 @@ __pycache__/
 server.log
 email_log.json
 schedule.json
+sent_log.json
+
+# 临时验证脚本
+verify_*.py
+final_verification.py
+validate_page_data.py
+
+# WorkBuddy 工作目录
+.workbuddy/
 
 # 系统文件
 .DS_Store
