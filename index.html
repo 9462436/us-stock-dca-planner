@@ -2790,7 +2790,7 @@ function renderPriceCards() {
       <div class="color-line"></div>
       <div class="ticker" style="color:${s.color}">${s.ticker} <span class="${liveClass}" title="${liveTitle}"></span></div>
       <div class="name">${s.name}</div>
-      <div class="price">$${price > 0 ? price.toFixed(2) : '加载中'}</div>
+      <div class="price">$${price > 0 ? price.toFixed(2) : '加载中'} <span class="price-cny">¥${price > 0 ? (price * safeFx).toFixed(2) : '--'}</span></div>
       <div class="change" style="color:${isUp ? '#ef4444' : '#22c55e'}">
         ${price > 0 ? (isUp ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + ' (' + (isUp ? '+' : '') + changePct.toFixed(2) + '%)' : '实时获取中...'}
       </div>

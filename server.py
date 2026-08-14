@@ -676,16 +676,20 @@ def generate_report(holdings=None):
         total_value += val
         total_pnl += pnl
 
+        # Convert USD values to RMB using real-time exchange rate
+        price_cny = price * fx
+        val_cny = val * fx
+        pnl_cny = pnl * fx
         sign = '+' if pnl >= 0 else '-'
         lines.append(
-            f"{ticker:<6} {shares:>5}股  ${price:>8.2f}  "
-            f"市值 ${val:>10,.2f}  {sign}${abs(pnl):>8,.2f}  {sign}{abs(pnl_pct):.2f}%"
+            f"{ticker:<6} {shares:>5}股  ${price:>8.2f} (¥{price_cny:>8.2f})  "
+            f"市值 ${val:>10,.2f} (¥{val_cny:>10,.2f})  {sign}${abs(pnl):>8,.2f} (¥{abs(pnl_cny):>8,.2f})  {sign}{abs(pnl_pct):.2f}%"
         )
 
     lines.append("=" * 40)
-    lines.append(f"总市值   ${total_value:,.2f}")
+    lines.append(f"总市值   ${total_value:,.2f} (¥{total_value*fx:,.2f})")
     sign = '+' if total_pnl >= 0 else '-'
-    lines.append(f"今日盈亏  {sign}${abs(total_pnl):,.2f}")
+    lines.append(f"今日盈亏  {sign}${abs(total_pnl):,.2f} (¥{abs(total_pnl)*fx:,.2f})")
     lines.append(f"美元汇率  $1 = ¥{fx:.4f}")
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
