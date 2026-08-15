@@ -7,10 +7,14 @@
 3. 固定随机种子（42）
 4. 期权价格回报 = expectedPriceReturn（页面显式设置）
 
-参数来源：index.html (2026-08-15 实测校准版)
-约束: sustainableYield + expectedPriceReturn ≈ 0.06~0.11
-      (单股YieldMax息价差≈10%, 指数备兑息价差≈6%, 标普备兑息价差≈11%)
-      基于 financecharts 3Y实测: AMZY PriceCAGR -19.2%, TotalReturnCAGR +24.1%
+参数来源：index.html (2026-08-15 实测校准版，基于 SEC 19a-1 分红通告 2026-08-12)
+核心客观结论：
+  1. YieldMax/0DTE 备兑 ETF 的「高分红」里 60%~97% 是「本金返还(ROC)」，即把本金发回给你，
+     真实净投资收益(30日 SEC 收益率)仅 ~2.6%，指数 0DTE 类为 0 或负值。
+  2. 因此 sustainableYield = 现金分红率(投资者实际收到)，expectedPriceReturn = NAV 侵蚀(负值)。
+  3. 总回报 = sustainableYield + expectedPriceReturn ≈ 5%~7%，远低于表面分红率(20%~60%)。
+实测锚点(2026-08-12 19a-1)：NVDY 分红率40.35%/ROC 93.36%；AMZY 60.96%/ROC 60~96%；
+      QDTY 39.7%/SEC -0.94%；SDTY 26.4%/ROC 0~60%；SEC 净收益 NVDY 2.61%/AMZY 2.59%。
 """
 import math
 
@@ -22,16 +26,16 @@ FX_RATE = 6.757039         # USD/CNY 汇率
 TAX_RATE = 0.10            # 10% 股息税
 
 # 页面配置（来自index.html stockConfigs，2026-08-15 实测校准版）
-# 约束: sustainableYield + expectedPriceReturn ≈ 0.06-0.11
-# XQQI: 8%-2%=6%, NVDY: 25%-15%=10%, AMZY: 25%-15%=10%, QDTE: 11%-5%=6%, SPYM: 5%+6%=11%
+# 总回报约束: sustainableYield + expectedPriceReturn ≈ 0.05-0.07
+# XQQI: 8%-1%=7%, NVDY: 25%-20%=5%, AMZY: 25%-20%=5%, QDTE: 20%-15%=5%, SPYM: 8%-2%=6%
 STOCK_CONFIGS = [
     {
         'ticker': 'XQQI',
         'price': 48.42,
         'sustainableYield': 0.08,
-        'expectedPriceReturn': -0.02,
+        'expectedPriceReturn': -0.01,
         'annualVol': 0.20,
-        'erosionRate': 2,
+        'erosionRate': 1,
         'allocation': 0,
         'color': '#3b82f6'
     },
@@ -39,9 +43,9 @@ STOCK_CONFIGS = [
         'ticker': 'NVDY',
         'price': 12.34,
         'sustainableYield': 0.25,
-        'expectedPriceReturn': -0.15,
+        'expectedPriceReturn': -0.20,
         'annualVol': 0.22,
-        'erosionRate': 15,
+        'erosionRate': 20,
         'allocation': 20,
         'color': '#22c55e'
     },
@@ -49,27 +53,27 @@ STOCK_CONFIGS = [
         'ticker': 'AMZY',
         'price': 11.91,
         'sustainableYield': 0.25,
-        'expectedPriceReturn': -0.15,
+        'expectedPriceReturn': -0.20,
         'annualVol': 0.20,
-        'erosionRate': 15,
+        'erosionRate': 20,
         'allocation': 20,
         'color': '#f59e0b'
     },
     {
         'ticker': 'QDTE',
         'price': 28.99,
-        'sustainableYield': 0.11,
-        'expectedPriceReturn': -0.05,
+        'sustainableYield': 0.20,
+        'expectedPriceReturn': -0.15,
         'annualVol': 0.18,
-        'erosionRate': 5,
+        'erosionRate': 15,
         'allocation': 20,
         'color': '#8b5cf6'
     },
     {
         'ticker': 'SPYM',
         'price': 90.47,
-        'sustainableYield': 0.05,
-        'expectedPriceReturn': 0.06,
+        'sustainableYield': 0.08,
+        'expectedPriceReturn': -0.02,
         'annualVol': 0.16,
         'erosionRate': 3,
         'allocation': 0,
@@ -249,7 +253,7 @@ def main():
     print(f"  汇率：{FX_RATE}")
     print(f"  股息税率：{TAX_RATE*100}%")
     print(f"  固定随机种子：42")
-    print(f"  约束: sustainableYield + expectedPriceReturn ≈ 0.02-0.03")
+    print(f"  约束: sustainableYield + expectedPriceReturn ≈ 0.05-0.07 (总回报)")
     print()
 
     print("初始配置：")
@@ -305,15 +309,20 @@ def main():
     priceReturnPct = last['totalReturnPct'] - divReturnPct
     print(f"  股息收益占比：{divReturnPct:.1f}%")
     print(f"  价格变动收益：{priceReturnPct:.1f}%")
+    print(f"  ⚠️  注：股息收益占比 >100% 意味着「股息」主要来自本金返还(ROC)")
+    print(f"      即基金把本金发回给你、净值同步缩水，并非真实盈利。")
     print()
 
-    if 10000 <= monthlyDiv <= 30000:
-        print(f"✅ 结论：¥{monthlyDiv:,.0f}/月 处于合理区间 (1-3万)")
-        print("   (基于年定投7000元，20年，高股息+期权收益ETF)")
-    elif monthlyDiv > 30000:
-        print(f"⚠️  结论：¥{monthlyDiv:,.0f}/月 偏高，可能低估了长期NAV磨蚀")
-    else:
-        print(f"⚠️  结论：¥{monthlyDiv:,.0f}/月 偏低，可能高估了长期NAV磨蚀")
+    # 真实净收益（30日 SEC 收益率口径，剔除 ROC）
+    print("客观校准说明（基于 2026-08-12 SEC 19a-1 实测）：")
+    print("  表面分红率 20%~60%，其中 60%~97% 是本金返还(ROC)")
+    print("  真实净投资收益(30日 SEC 收益率)：NVDY 2.61% / AMZY 2.59% / QDTY -0.94%")
+    print("  因此「月均股息」里约 90% 是拿回自己的本金，真实收益约为此数的 1/10")
+    print()
+    print(f"结论：表面月均派息 ¥{monthlyDiv:,.0f}/月，但其中约 90% 是本金返还(ROC)")
+    print(f"      真实净被动收益 ≈ ¥{monthlyDiv*0.1:,.0f}/月；")
+    print(f"      期末总市值 ¥{last['portfolioValueRMB']:,.0f}，现金 CAGR {last['annualizedROI']:.1f}%")
+    print(f"      总回报(现金投入) {last['totalReturnPct']:.1f}% —— 这才是衡量财富增长的客观口径")
 
     # 多次模拟（不同随机种子）
     print()
