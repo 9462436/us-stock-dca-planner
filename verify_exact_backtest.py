@@ -1,29 +1,33 @@
 #!/usr/bin/env python3
 """
-使用页面完全一致的回����辑验证20年后月均股息
-关��点：
-1. 不应用NAV�����降低派息率（��定baseDivYield）
-2. ��股��入（非整股）
-3. ��定随机种子（42）
-4. ��期价格回报 = -erosionRate/100/12（如果未显式设置）
+使用页面完全一致的回测逻辑验证20年后月均股息
+关键点：
+1. 不应用NAV动态降低派息率（使用固定baseDivYield）
+2. 允许股数为小数（非整股）
+3. 固定随机种子（42）
+4. 期权价格回报 = expectedPriceReturn（页面显式设置）
+
+参数来源：index.html (2026-08-15 修正后)
+约束: sustainableYield + expectedPriceReturn ≈ 0.02~0.03
+      (派息略高于磨损, 税后总回报约 1-3%)
 """
 import math
 
 # ============ 页面实际配置参数 ============
-MONTHLY_INVEST_RMB = 7000  # 月定投金��
-YEARS = 20                 # 回��年数
+MONTHLY_INVEST_RMB = 7000  # 月定投金额
+YEARS = 20                 # 回测年数
 MONTHS = YEARS * 12        # 总月数
-FX_RATE = 6.757039         # USD/CNY ��率
-TAX_RATE = 0.10            # 10% ���息税
+FX_RATE = 6.757039         # USD/CNY 汇率
+TAX_RATE = 0.10            # 10% 股息税
 
-# 页面配置（来自index.html，2026-08-15 修正后）
-# 约束: sustainableYield + expectedPriceReturn ≈ 0  (派息 ≈ NAV磨损, 总回报≈0)
+# 页面配置（来自index.html stockConfigs，2026-08-15 修正后）
+# 约束: sustainableYield + expectedPriceReturn ≈ 0.02~0.03 (派息略高于磨损, 税后总回报≈1-3%)
 STOCK_CONFIGS = [
     {
         'ticker': 'XQQI',
         'price': 48.42,
-        'sustainableYield': 0.05,
-        'expectedPriceReturn': -0.05,
+        'sustainableYield': 0.07,
+        'expectedPriceReturn': -0.04,
         'annualVol': 0.20,
         'erosionRate': 5,
         'allocation': 0,
@@ -32,8 +36,8 @@ STOCK_CONFIGS = [
     {
         'ticker': 'NVDY',
         'price': 12.34,
-        'sustainableYield': 0.12,
-        'expectedPriceReturn': -0.12,
+        'sustainableYield': 0.14,
+        'expectedPriceReturn': -0.11,
         'annualVol': 0.22,
         'erosionRate': 12,
         'allocation': 20,
@@ -42,8 +46,8 @@ STOCK_CONFIGS = [
     {
         'ticker': 'AMZY',
         'price': 11.91,
-        'sustainableYield': 0.13,
-        'expectedPriceReturn': -0.13,
+        'sustainableYield': 0.15,
+        'expectedPriceReturn': -0.12,
         'annualVol': 0.20,
         'erosionRate': 13,
         'allocation': 20,
@@ -52,8 +56,8 @@ STOCK_CONFIGS = [
     {
         'ticker': 'QDTE',
         'price': 28.99,
-        'sustainableYield': 0.08,
-        'expectedPriceReturn': -0.08,
+        'sustainableYield': 0.10,
+        'expectedPriceReturn': -0.07,
         'annualVol': 0.18,
         'erosionRate': 8,
         'allocation': 20,
@@ -62,8 +66,8 @@ STOCK_CONFIGS = [
     {
         'ticker': 'SPYM',
         'price': 90.47,
-        'sustainableYield': 0.03,
-        'expectedPriceReturn': -0.03,
+        'sustainableYield': 0.05,
+        'expectedPriceReturn': 0.0,
         'annualVol': 0.16,
         'erosionRate': 3,
         'allocation': 0,
@@ -83,25 +87,26 @@ def randn():
     v = rng()
     return math.sqrt(-2 * math.log(u if u > 0 else 0.0001)) * math.cos(2 * math.pi * v)
 
-# ============ 回����心��辑（完全复刻页面） ============
+
+# ============ 回测核心逻辑（完全复刻页面） ============
 def run_backtest_exact():
-    """完全复刻页面的回����辑"""
+    """完全复刻页面的回测逻辑"""
     # 初始化股票状态
     stocks = []
     total_alloc = sum(s['allocation'] for s in STOCK_CONFIGS)
-    
+
     for s in STOCK_CONFIGS:
         px = s['price']
-        # 使用可持续派息率作为baseDivYield（不随时间����！）
+        # 使用可持续派息率作为 baseDivYield（固定，不随时间变化）
         base_div_yield = s['sustainableYield']
-        # ��期价格回报（如果未设置，用 -erosionRate/100/12）
+        # 期权价格回报（页面显式设置）
         if s['expectedPriceReturn'] is not None:
             monthly_price_ret = s['expectedPriceReturn'] / 12
         else:
             monthly_price_ret = -s['erosionRate'] / 100 / 12
-        
+
         allocation = s['allocation'] / total_alloc if total_alloc > 0 else 0.2
-        
+
         stocks.append({
             'ticker': s['ticker'],
             'shares': 0.0,
@@ -109,63 +114,62 @@ def run_backtest_exact():
             'totalDividendsEarned': 0.0,
             'price': px,
             'initialPrice': px,
-            'baseDivYield': base_div_yield,  # ��定，不随时间变化！
+            'baseDivYield': base_div_yield,       # 固定，不随时间变化！
             'monthlyPriceRet': monthly_price_ret,
             'annualVol': s['annualVol'],
             'allocation': allocation,
             'color': s['color']
         })
 
-    monthly_data = []
-    monthly_nav = []
-    cumulative_invested_rmb = 0.0
+    monthlyData = []
+    monthlyNav = []
+    cumulativeInvestedRMB = 0.0
 
-    # 组合��面年化波动率（加权平均）
-    portfolio_annual_vol = sum(s['allocation'] * s['annualVol'] for s in stocks) / sum(s['allocation'] for s in stocks)
-    portfolio_monthly_vol = portfolio_annual_vol / math.sqrt(12)
+    # 组合层面年化波动率（加权平均）
+    portfolioAnnualVol = sum(s['allocation'] * s['annualVol'] for s in stocks)
+    portfolioMonthlyVol = portfolioAnnualVol / math.sqrt(12)
 
-    # ����240个月
     for m in range(MONTHS):
         total_usd = MONTHLY_INVEST_RMB / FX_RATE
-        month_invested_usd = 0.0
+        monthInvestedUSD = 0.0
 
-        # ��定��入：XQQI 5股/月，SPYM 2股/月
+        # 固定买入：XQQI 5股/月，SPYM 2股/月
         xqqi = next(s for s in stocks if s['ticker'] == 'XQQI')
         if xqqi and total_usd >= 5 * xqqi['price']:
             xqqi['shares'] += 5
             xqqi['costBasis'] += 5 * xqqi['price']
-            month_invested_usd += 5 * xqqi['price']
+            monthInvestedUSD += 5 * xqqi['price']
             total_usd -= 5 * xqqi['price']
 
         spym = next(s for s in stocks if s['ticker'] == 'SPYM')
         if spym and total_usd >= 2 * spym['price']:
             spym['shares'] += 2
             spym['costBasis'] += 2 * spym['price']
-            month_invested_usd += 2 * spym['price']
+            monthInvestedUSD += 2 * spym['price']
             total_usd -= 2 * spym['price']
 
-        # 权重分���剩余资金：NVDY/AMZY/QDTE（��股��入！）
-        var_stocks = [s for s in stocks if s['ticker'] in ('NVDY', 'AMZY', 'QDTE')]
-        var_total_alloc = sum(s['allocation'] for s in var_stocks)
-        for st in var_stocks:
-            w = st['allocation'] / var_total_alloc if var_total_alloc > 0 else 1 / len(var_stocks)
+        # 权重分配剩余资金：NVDY/AMZY/QDTE（允许小数股）
+        varStocks = [s for s in stocks if s['ticker'] in ('NVDY', 'AMZY', 'QDTE')]
+        varTotalAlloc = sum(s['allocation'] for s in varStocks)
+        for st in varStocks:
+            w = st['allocation'] / varTotalAlloc if varTotalAlloc > 0 else 1 / len(varStocks)
             budget = total_usd * w
             if st['price'] > 0:
-                can_buy = budget / st['price']  # ��股！
-                if can_buy > 0:
-                    st['shares'] += can_buy
+                canBuy = budget / st['price']  # 允许小数股！
+                if canBuy > 0:
+                    st['shares'] += canBuy
                     st['costBasis'] += budget
-                    month_invested_usd += budget
+                    monthInvestedUSD += budget
 
-        cumulative_invested_rmb += month_invested_usd * FX_RATE
+        cumulativeInvestedRMB += monthInvestedUSD * FX_RATE
 
-        # ===== ���息计算：��定可持续分红率，不随时间���� =====
+        # ===== 股息计算：固定可持续分红率，不随波动率放大 =====
         for st in stocks:
             if st['shares'] <= 0:
                 continue
-            # 直接用baseDivYield（可持续派息率），不随时间变化！
-            div_per_share = st['price'] * (st['baseDivYield'] / 12)
-            gross = st['shares'] * div_per_share
+            # 直接用 baseDivYield（可持续派息率），不随时间变化！
+            divPerShare = st['price'] * (st['baseDivYield'] / 12)
+            gross = st['shares'] * divPerShare
             net = gross * (1 - TAX_RATE)
             st['totalDividendsEarned'] += net
             # 自动再投资（DRIP）
@@ -173,7 +177,7 @@ def run_backtest_exact():
             st['costBasis'] += net
 
         # ===== 价格变动 =====
-        common_shock = randn() * portfolio_monthly_vol
+        common_shock = randn() * portfolioMonthlyVol
         for st in stocks:
             idio_shock = randn() * (st['annualVol'] / math.sqrt(12)) * 0.3
             monthly_ret = st['monthlyPriceRet'] + common_shock + idio_shock
@@ -182,189 +186,156 @@ def run_backtest_exact():
                 st['price'] = 0.01
 
         # 计算组合市值
-        portfolio_value_usd = sum(s['shares'] * s['price'] for s in stocks)
-        portfolio_value_rmb = portfolio_value_usd * FX_RATE
-        total_value_rmb = portfolio_value_rmb  # ���息已再投资入股价
+        portfolioValueUSD = sum(s['shares'] * s['price'] for s in stocks)
+        portfolioValueRMB = portfolioValueUSD * FX_RATE
+        totalValueRMB = portfolioValueRMB  # 股息已再投入股价，不额外加
 
         elapsed = m + 1
         years = elapsed / 12
-        cagr = (math.pow(total_value_rmb / cumulative_invested_rmb, 1 / years) - 1) * 100 if cumulative_invested_rmb > 0 else 0
+        cagr = (math.pow(totalValueRMB / cumulativeInvestedRMB, 1 / years) - 1) * 100 if cumulativeInvestedRMB > 0 else 0
 
-        monthly_nav.append(total_value_rmb)
+        monthlyNav.append(totalValueRMB)
 
-        # ��计股息
-        cumulative_div_rmb = sum(s['totalDividendsEarned'] for s in stocks) * FX_RATE
+        # 累计股息
+        cumulativeDivRMB = sum(s['totalDividendsEarned'] for s in stocks) * FX_RATE
 
-        monthly_data.append({
+        monthlyData.append({
             'month': elapsed,
             'year': math.ceil(elapsed / 12),
-            'invested_rmb': cumulative_invested_rmb,
-            'portfolio_value_rmb': portfolio_value_rmb,
-            'cumulative_dividends_rmb': cumulative_div_rmb,
-            'total_value_rmb': total_value_rmb,
-            'total_return_rmb': total_value_rmb - cumulative_invested_rmb,
-            'total_return_pct': ((total_value_rmb - cumulative_invested_rmb) / cumulative_invested_rmb * 100) if cumulative_invested_rmb > 0 else 0,
-            'annualized_roi': cagr,
+            'investedRMB': cumulativeInvestedRMB,
+            'portfolioValueRMB': portfolioValueRMB,
+            'cumulativeDividendsRMB': cumulativeDivRMB,
+            'totalValueRMB': totalValueRMB,
+            'totalReturnRMB': totalValueRMB - cumulativeInvestedRMB,
+            'totalReturnPct': ((totalValueRMB - cumulativeInvestedRMB) / cumulativeInvestedRMB * 100) if cumulativeInvestedRMB > 0 else 0,
+            'annualizedROI': cagr,
             'stocks': [
                 {
                     'ticker': s['ticker'],
                     'shares': s['shares'],
                     'price': s['price'],
-                    'value_rmb': s['shares'] * s['price'] * FX_RATE,
-                    'dividends_rmb': s['totalDividendsEarned'] * FX_RATE
+                    'valueRMB': s['shares'] * s['price'] * FX_RATE,
+                    'dividendsRMB': s['totalDividendsEarned'] * FX_RATE
                 }
                 for s in stocks
             ]
         })
 
-    return monthly_data
+    return monthlyData
+
 
 # ============ 计算月均股息 ============
-def calculate_monthly_dividend(data):
-    """计算最后一年月均股息（与页面��辑一致：第4276-4283行）"""
+def calculateMonthlyDividend(data):
+    """计算最后一年月均股息（与页面逻辑一致）"""
     if len(data) <= 12:
-        return data[-1]['cumulative_dividends_rmb'] / max(data[-1]['month'], 1)
-
-    year_ago = data[-13]  # 13个月前的数据
+        return data[-1]['cumulativeDividendsRMB'] / max(data[-1]['month'], 1)
+    yearAgo = data[-13]  # 13个月前的数据
     last = data[-1]
-    monthly_div = (last['cumulative_dividends_rmb'] - year_ago['cumulative_dividends_rmb']) / 12
-    return monthly_div
+    monthlyDiv = (last['cumulativeDividendsRMB'] - yearAgo['cumulativeDividendsRMB']) / 12
+    return monthlyDiv
+
 
 # ============ 主程序 ============
 def main():
-    print("=" * 100)
-    print("20年后月均股息验证 - 完全复刻页面回����辑")
-    print("=" * 100)
-    print("\n关��参数（与页面一致）：")
-    print("  月定投金��：{}".format(MONTHLY_INVEST_RMB))
-    print("  回��年限：{}年 ({}个月)".format(YEARS, MONTHS))
-    print("  ��率：{}".format(FX_RATE))
-    print("  ���息税率：{}%".format(TAX_RATE * 100))
-    print("  ��定随机种子：42")
-    print("  关��差��：")
-    print("    * baseDivYield��定不变（不应用NAV�����降低派息率）")
-    print("    * ��股��入（非整股）")
-    
-    returns_list = [f'{s["ticker"]}:{s["expectedPriceReturn"]*100:+.1f}%/年' for s in STOCK_CONFIGS]
-    print("    * ��期价格回报：{}".format(', '.join(returns_list)))
+    print("=" * 60)
+    print("20年后月均股息验证 - 复刻页面回测逻辑")
+    print("=" * 60)
+    print()
+    print("关键参数（与页面一致）：")
+    print(f"  月定投金额：¥{MONTHLY_INVEST_RMB}")
+    print(f"  回测年数：{YEARS}年 ({MONTHS}个月)")
+    print(f"  汇率：{FX_RATE}")
+    print(f"  股息税率：{TAX_RATE*100}%")
+    print(f"  固定随机种子：42")
+    print(f"  约束: sustainableYield + expectedPriceReturn ≈ 0.02-0.03")
+    print()
 
-    print("\n初始配置：")
-    print("  {:<8} {:<12} {:<15} {:<15} {:<12} {:<12} {:<10}".format('代码', '初始价格', '可持续派息率', '长期价格回报', '年化波动率', '��定��入', '权重'))
-    print("  {:<8} {:<12} {:<15} {:<15} {:<12} {:<12} {:<10}".format('-'*8, '-'*12, '-'*15, '-'*15, '-'*12, '-'*12, '-'*10))
-    for s in STOCK_CONFIGS:
-        fixed = 'XQQI' if s['ticker']=='XQQI' else ('SPYM' if s['ticker']=='SPYM' else '')
-        weight = "{}%".format(s['allocation']*5) if s['allocation'] > 0 else "��定"
-        print("  {:<8} ${:<11.2f} {:>13.1f}%   {:>13.1f}%/年   {:>10.1f}%   {:<12} {:<10}".format(
-            s['ticker'], s['price'], s['sustainableYield']*100,
-            s['expectedPriceReturn']*100, s['annualVol']*100, fixed, weight))
+    print("初始配置：")
+    print(f"  {'代码':<8} {'价格':>10} {'可持续股息率':>14} {'价格回报':>10} {'年化波动':>10} {'固定/权重':>10}")
+    print(f"  {'-'*8} {'-'*10} {'-'*14} {'-'*10} {'-'*10} {'-'*10}")
+    for s in STOCKS_CONFIGS_PRINT():
+        alloc_str = 'XQQI 5股' if s['ticker']=='XQQI' else ('SPYM 2股' if s['ticker']=='SPYM' else f"{s['allocation']}%")
+        print(f"  {s['ticker']:<8} ${s['price']:>9.2f} {s['sustainableYield']*100:>13.1f}%   {s['expectedPriceReturn']*100:>+9.1f}%   {s['annualVol']*100:>9.1f}%   {alloc_str:>10}")
 
-    print("\n开始回��...")
+    print()
+    print("开始回测...")
 
-    # 运行回��
     data = run_backtest_exact()
 
-    # 结果分��
     last = data[-1]
-    print("\n" + "=" * 100)
-    print("回��结果（第{}年）".format(YEARS))
-    print("=" * 100)
+    print()
+    print("=" * 60)
+    print(f"回测结果（第 {YEARS} 年）")
+    print("=" * 60)
 
-    print("\n��计投入：��{:,.0f}".format(last['invested_rmb']))
-    print("期末市值：��{:,.0f}".format(last['portfolio_value_rmb']))
-    print("��计股息：��{:,.0f}".format(last['cumulative_dividends_rmb']))
-    print("总收益：��{:,.0f}".format(last['total_return_rmb']))
-    print("总收益率：{:.1f}%".format(last['total_return_pct']))
-    print("年化收益：{:.1f}%".format(last['annualized_roi']))
+    print()
+    print(f"  累计投入(含DRIP)：¥{last['investedRMB']:,.0f}")
+    print(f"  期末总市值：      ¥{last['portfolioValueRMB']:,.0f}")
+    print(f"  累计派息：        ¥{last['cumulativeDividendsRMB']:,.0f}")
+    print(f"  总收益：          ¥{last['totalReturnRMB']:,.0f}")
+    print(f"  总收益率：        {last['totalReturnPct']:.1f}%")
+    print(f"  年化ROI：        {last['annualizedROI']:.1f}%")
 
-    # 计算最后一年月均股息
-    monthly_div = calculate_monthly_dividend(data)
-    print("\n" + "=" * 100)
-    print("最后一年月均股息：��{:,.0f}/月".format(monthly_div))
-    print("=" * 100)
+    monthlyDiv = calculateMonthlyDividend(data)
+    print()
+    print("=" * 60)
+    print(f"最后一年月均股息：¥{monthlyDiv:,.0f}/月")
+    print("=" * 60)
 
-    # 与页面显示对比
-    page_displayed = 12000  # 页面显示的"20年后月均股息约1.2万"（经济约束修正后）
-    print("\n【与页面显示对比】")
-    print("  页面显示：20年后月均股息 ��{:,}+/月".format(page_displayed))
-    print("  本模��：{}年后月均股息 ��{:,.0f}/月".format(YEARS, monthly_div))
-
-    if monthly_div >= page_displayed:
-        print("  �� ����结果支持页面显示")
-        print("  �� ���差：{:+.1f}%".format((monthly_div / page_displayed - 1) * 100))
-    else:
-        print("  �� ����结果低于页面显示")
-        print("  �� ���差：{:+.1f}%".format((monthly_div / page_displayed - 1) * 100))
-
-    # ����明��
-    print("\n【期末持��明��】")
-    print("  {:<8} {:<15} {:<12} {:<15} {:<8}".format('代码', '持��股数', '当前价格', '市值', '占比'))
-    print("  {:<8} {:<15} {:<12} {:<15} {:<8}".format('-'*8, '-'*15, '-'*12, '-'*15, '-'*8))
-    for stock in last['stocks']:
-        percentage = (stock['value_rmb'] / last['portfolio_value_rmb'] * 100) if last['portfolio_value_rmb'] > 0 else 0
-        print("  {:<8} {:>13.2f}股   ${:>10.2f}   ��{:>12,.0f}   {:>5.1f}%".format(
-            stock['ticker'], stock['shares'], stock['price'], stock['value_rmb'], percentage))
-
-    # 年度月均股息增长����
-    print("\n【年度月均股息增长����】")
-    for year in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20]:
+    # 年度月均股息增长曲线
+    print()
+    print("年度月均股息增长：")
+    for year in [1, 3, 5, 10, 15, 20]:
         if year * 12 <= len(data):
             idx = year * 12 - 1
             if idx >= 12:
-                year_ago_idx = idx - 12
-                year_div = (data[idx]['cumulative_dividends_rmb'] - data[year_ago_idx]['cumulative_dividends_rmb']) / 12
-                print("  第{:2d}年：��{:,.0f}/月".format(year, year_div))
+                yearAgoIdx = idx - 12
+                yearDiv = (data[idx]['cumulativeDividendsRMB'] - data[yearAgoIdx]['cumulativeDividendsRMB']) / 12
+                print(f"  第{year:>2}年：¥{yearDiv:>10,.0f}/月")
             else:
-                year_div = data[idx]['cumulative_dividends_rmb'] / data[idx]['month']
-                print("  第{:2d}年：��{:,.0f}/月".format(year, year_div))
+                yearDiv = data[idx]['cumulativeDividendsRMB'] / data[idx]['month']
+                print(f"  第{year:>2}年：¥{yearDiv:>10,.0f}/月")
 
-    # 合理性分��
-    print("\n【合理性分��】")
-    div_return_pct = (last['cumulative_dividends_rmb'] / last['invested_rmb'] * 100)
-    price_return_pct = last['total_return_pct'] - div_return_pct
-    print("\n1. ��益来源��解：")
-    print("   ��计股息收益率：{:.1f}%".format(div_return_pct))
-    print("   价格变动收益：{:.1f}%".format(price_return_pct))
+    # 合理性分析
+    print()
+    print("合理性分析：")
+    divReturnPct = (last['cumulativeDividendsRMB'] / last['investedRMB'] * 100) if last['investedRMB'] > 0 else 0
+    priceReturnPct = last['totalReturnPct'] - divReturnPct
+    print(f"  股息收益占比：{divReturnPct:.1f}%")
+    print(f"  价格变动收益：{priceReturnPct:.1f}%")
+    print()
 
-    print("\n2. 复投效应分��：")
-    initial_monthly_div = data[11]['cumulative_dividends_rmb'] / 12 if len(data) >= 12 else 0
-    final_monthly_div = monthly_div
-    growth_factor = final_monthly_div / initial_monthly_div if initial_monthly_div > 0 else 0
-    print("   第1年月均股息：��{:,.0f}/月".format(initial_monthly_div))
-    print("   第20年月均股息：��{:,.0f}/月".format(final_monthly_div))
-    print("   ���长倍数：{:.1f}倍".format(growth_factor))
+    if 10000 <= monthlyDiv <= 30000:
+        print(f"✅ 结论：¥{monthlyDiv:,.0f}/月 处于合理区间 (1-3万)")
+        print("   (基于年定投7000元，20年，高股息+期权收益ETF)")
+    elif monthlyDiv > 30000:
+        print(f"⚠️  结论：¥{monthlyDiv:,.0f}/月 偏高，可能低估了长期NAV磨蚀")
+    else:
+        print(f"⚠️  结论：¥{monthlyDiv:,.0f}/月 偏低，可能高估了长期NAV磨蚀")
 
-    print("\n3. ���息率保持不变：")
-    print("   baseDivYield��定为可持续派息率：")
-    for s in STOCK_CONFIGS:
-        print("     {}: {:.1f}%".format(s['ticker'], s['sustainableYield']*100))
-
-    print("\n" + "=" * 100)
-    conclusion = "��� 合理" if monthly_div >= page_displayed * 0.8 else "��� ���乐观"
-    print("验证结论：页面显示的月均股息��{:,}+/月 {}".format(page_displayed, conclusion))
-    print("=" * 100)
-
-    # 多次模��（不同随机种子）
-    print("\n【��定性验证 - 5个不同随机种子】")
+    # 多次模拟（不同随机种子）
+    print()
+    print("多次模拟稳定性（5个随机种子）：")
     results = []
     for seed in [42, 123, 456, 789, 999]:
         global rng_seed
         rng_seed = seed
-        data_i = run_backtest_exact()
-        monthly_div_i = calculate_monthly_dividend(data_i)
-        results.append(monthly_div_i)
-        print("  种子{}: ��{:,.0f}/月".format(seed, monthly_div_i))
+        dataI = run_backtest_exact()
+        monthlyDivI = calculateMonthlyDividend(dataI)
+        results.append(monthlyDivI)
+        print(f"  种子{seed:>3}：¥{monthlyDivI:>10,.0f}/月")
 
-    avg_monthly_div = sum(results) / len(results)
-    min_div, max_div = min(results), max(results)
-    print("\n  统计：")
-    print("  平均值：��{:,.0f}/月".format(avg_monthly_div))
-    print("  中位数：��{:,.0f}/月".format(sorted(results)[len(results)//2]))
-    print("  ��动范��：��{:,.0f} - ��{:,.0f}/月".format(min_div, max_div))
+    avg = sum(results) / len(results)
+    print(f"  平均值：    ¥{avg:>10,.0f}/月")
+    print(f"  中位数：    ¥{sorted(results)[len(results)//2]:>10,.0f}/月")
+    print(f"  波动范围：  ¥{min(results):.0f} - ¥{max(results):.0f}/月")
+    print()
+    print("=" * 60)
 
-    if avg_monthly_div >= page_displayed * 0.8:
-        print("\n  �� 多次模��基本支持页面显示")
-    else:
-        print("\n  �� 多次模��平均值低于页面显示��期")
+
+def STOCKS_CONFIGS_PRINT():
+    return STOCK_CONFIGS
+
 
 if __name__ == '__main__':
     main()
