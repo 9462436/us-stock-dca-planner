@@ -7,9 +7,10 @@
 3. 固定随机种子（42）
 4. 期权价格回报 = expectedPriceReturn（页面显式设置）
 
-参数来源：index.html (2026-08-15 修正后)
-约束: sustainableYield + expectedPriceReturn ≈ 0.02~0.03
-      (派息略高于磨损, 税后总回报约 1-3%)
+参数来源：index.html (2026-08-15 实测校准版)
+约束: sustainableYield + expectedPriceReturn ≈ 0.06~0.11
+      (单股YieldMax息价差≈10%, 指数备兑息价差≈6%, 标普备兑息价差≈11%)
+      基于 financecharts 3Y实测: AMZY PriceCAGR -19.2%, TotalReturnCAGR +24.1%
 """
 import math
 
@@ -20,46 +21,47 @@ MONTHS = YEARS * 12        # 总月数
 FX_RATE = 6.757039         # USD/CNY 汇率
 TAX_RATE = 0.10            # 10% 股息税
 
-# 页面配置（来自index.html stockConfigs，2026-08-15 修正后）
-# 约束: sustainableYield + expectedPriceReturn ≈ 0.02~0.03 (派息略高于磨损, 税后总回报≈1-3%)
+# 页面配置（来自index.html stockConfigs，2026-08-15 实测校准版）
+# 约束: sustainableYield + expectedPriceReturn ≈ 0.06-0.11
+# XQQI: 8%-2%=6%, NVDY: 25%-15%=10%, AMZY: 25%-15%=10%, QDTE: 11%-5%=6%, SPYM: 5%+6%=11%
 STOCK_CONFIGS = [
     {
         'ticker': 'XQQI',
         'price': 48.42,
-        'sustainableYield': 0.07,
-        'expectedPriceReturn': -0.04,
+        'sustainableYield': 0.08,
+        'expectedPriceReturn': -0.02,
         'annualVol': 0.20,
-        'erosionRate': 5,
+        'erosionRate': 2,
         'allocation': 0,
         'color': '#3b82f6'
     },
     {
         'ticker': 'NVDY',
         'price': 12.34,
-        'sustainableYield': 0.14,
-        'expectedPriceReturn': -0.11,
+        'sustainableYield': 0.25,
+        'expectedPriceReturn': -0.15,
         'annualVol': 0.22,
-        'erosionRate': 12,
+        'erosionRate': 15,
         'allocation': 20,
         'color': '#22c55e'
     },
     {
         'ticker': 'AMZY',
         'price': 11.91,
-        'sustainableYield': 0.15,
-        'expectedPriceReturn': -0.12,
+        'sustainableYield': 0.25,
+        'expectedPriceReturn': -0.15,
         'annualVol': 0.20,
-        'erosionRate': 13,
+        'erosionRate': 15,
         'allocation': 20,
         'color': '#f59e0b'
     },
     {
         'ticker': 'QDTE',
         'price': 28.99,
-        'sustainableYield': 0.10,
-        'expectedPriceReturn': -0.07,
+        'sustainableYield': 0.11,
+        'expectedPriceReturn': -0.05,
         'annualVol': 0.18,
-        'erosionRate': 8,
+        'erosionRate': 5,
         'allocation': 20,
         'color': '#8b5cf6'
     },
@@ -67,7 +69,7 @@ STOCK_CONFIGS = [
         'ticker': 'SPYM',
         'price': 90.47,
         'sustainableYield': 0.05,
-        'expectedPriceReturn': 0.0,
+        'expectedPriceReturn': 0.06,
         'annualVol': 0.16,
         'erosionRate': 3,
         'allocation': 0,

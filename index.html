@@ -2513,36 +2513,36 @@ const stockConfigs = [
   {
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
     divPerShare: 0.75, divFreq: 'monthly',   // 月分红 ~$0.75
-    erosionRate: 5, allocation: 0,           // NAV 年侵蚀 ~5%
-    sustainableYield: 0.07,  // 长期可持续股息率 7%（派息略高于磨损）
-    expectedPriceReturn: -0.04, // 长期价格年化 -4%（税后总回报≈+1%）
+    erosionRate: 2, allocation: 0,           // NAV 年侵蚀 ~2%
+    sustainableYield: 0.08,  // 长期可持续股息率 8%（息价差+6%）
+    expectedPriceReturn: -0.02, // 长期价格年化 -2%（税后净回报≈+6%）
     annualVol: 0.20,           // 年化波动率
     color: '#3b82f6', colorClass: 'c-xqqi'
   },
   {
     ticker: 'NVDY', name: 'YieldMax NVDA Option Income ETF',
     divPerShare: 0.08, divFreq: 'weekly',    // 周分红 ~$0.08
-    erosionRate: 12, allocation: 20,          // NAV 年侵蚀 ~12%
-    sustainableYield: 0.14,  // 长期可持续股息率 14%（派息略高于磨损）
-    expectedPriceReturn: -0.11, // 长期价格年化 -11%（税后总回报≈+2%）
+    erosionRate: 15, allocation: 20,          // NAV 年侵蚀 ~15%
+    sustainableYield: 0.25,  // 长期可持续股息率 25%（息价差+10%）
+    expectedPriceReturn: -0.15, // 长期价格年化 -15%（税后净回报≈+10%）
     annualVol: 0.22,           // 单股高波动
     color: '#22c55e', colorClass: 'c-nvdy'
   },
   {
     ticker: 'AMZY', name: 'YieldMax AMZN Option Income ETF',
     divPerShare: 0.07, divFreq: 'weekly',    // 周分红 ~$0.07
-    erosionRate: 13, allocation: 20,          // NAV 年侵蚀 ~13%
-    sustainableYield: 0.15,  // 长期可持续股息率 15%（派息略高于磨损）
-    expectedPriceReturn: -0.12, // 长期价格年化 -12%（税后总回报≈+2%）
+    erosionRate: 15, allocation: 20,          // NAV 年侵蚀 ~15%
+    sustainableYield: 0.25,  // 长期可持续股息率 25%（息价差+10%）
+    expectedPriceReturn: -0.15, // 长期价格年化 -15%（税后净回报≈+10%）
     annualVol: 0.20,           // 单股波动
     color: '#f59e0b', colorClass: 'c-amzy'
   },
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
     divPerShare: 0.60, divFreq: 'monthly',   // 月分红 ~$0.60
-    erosionRate: 8, allocation: 20,          // NAV 年侵蚀 ~8%
-    sustainableYield: 0.10,  // 长期可持续股息率 10%（派息略高于磨损）
-    expectedPriceReturn: -0.07, // 长期价格年化 -7%（税后总回报≈+2%）
+    erosionRate: 5, allocation: 20,          // NAV 年侵蚀 ~5%
+    sustainableYield: 0.11,  // 长期可持续股息率 11%（息价差+6%）
+    expectedPriceReturn: -0.05, // 长期价格年化 -5%（税后净回报≈+6%）
     annualVol: 0.18,           // 宽基指数波动
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
@@ -2550,8 +2550,8 @@ const stockConfigs = [
     ticker: 'SPYM', name: 'YieldMax S&P 500 Option Income ETF',
     divPerShare: 0.35, divFreq: 'monthly',   // 月分红 ~$0.35
     erosionRate: 3, allocation: 0,           // NAV 年侵蚀 ~3%
-    sustainableYield: 0.05,  // 长期可持续股息率 5%（派息略高于磨损）
-    expectedPriceReturn: 0.0,  // 长期价格年化 0%（税后总回报≈+3.5%）
+    sustainableYield: 0.05,  // 长期可持续股息率 5%（息价差+11%）
+    expectedPriceReturn: 0.06,  // 长期价格年化 +6%（跟随标普上涨）
     annualVol: 0.16,           // 标普500 低波动
     color: '#06b6d4', colorClass: 'c-spym'
   }
