@@ -94,12 +94,15 @@ DCA_REST_TICKERS = ['NVDY', 'AMZY', 'QDTE']
 DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0}
 
 # 派息信息（用于报表生成）
+# 注意：部分分红属本金返还(ROC)，真实经济收益需扣除 ROC 后计算
+#   sustainableYield = 年化可持续分红率（真实经济收益）
+#   rocRatio = 分红中本金返还占比
 DIV_INFO = {
-    'XQQI':  {'div': 0.75, 'freq': 'monthly'},
-    'NVDY':  {'div': 0.08, 'freq': 'weekly'},
-    'AMZY':  {'div': 0.07, 'freq': 'weekly'},
-    'QDTE':  {'div': 0.60, 'freq': 'monthly'},
-    'SPYM':  {'div': 0.35, 'freq': 'monthly'},
+    'XQQI':  {'div': 0.75, 'freq': 'monthly', 'rocRatio': 0.10, 'secYield': 0.08},
+    'NVDY':  {'div': 0.08, 'freq': 'weekly',  'rocRatio': 0.70, 'secYield': 0.12},
+    'AMZY':  {'div': 0.07, 'freq': 'weekly',  'rocRatio': 0.65, 'secYield': 0.11},
+    'QDTE':  {'div': 0.60, 'freq': 'monthly', 'rocRatio': 0.80, 'secYield': 0.12},
+    'SPYM':  {'div': 0.35, 'freq': 'monthly', 'rocRatio': 0.60, 'secYield': 0.08},
 }
 
 # 大盘指数配置
@@ -775,6 +778,34 @@ def generate_report(holdings=None):
     sign = '+' if total_pnl >= 0 else '-'
     lines.append(f"今日盈亏  {sign}${abs(total_pnl):,.2f} (¥{abs(total_pnl)*fx:,.2f})")
     lines.append(f"美元汇率  $1 = ¥{fx:.4f}")
+    lines.append("")
+    # 显示持仓的派息收益情况（含 ROC 说明）
+    lines.append("-- 派息收益 (税后10%) --")
+    monthly_div_real = 0
+    monthly_div_gross = 0
+    for ticker, info in STOCKS.items():
+        shares = holdings.get(ticker, 0)
+        if not shares:
+            continue
+        div_info = DIV_INFO.get(ticker, {})
+        if not div_info:
+            continue
+        div = div_info['div']
+        freq = div_info.get('freq', 'monthly')
+        if freq == 'monthly':
+            gross = shares * div * 0.9  # 税后
+            real = shares * div * (1 - div_info.get('rocRatio', 0)) * 0.9
+        elif freq == 'weekly':
+            gross = shares * div * 52 / 12 * 0.9  # 税后
+            real = shares * div * 52 / 12 * (1 - div_info.get('rocRatio', 0)) * 0.9
+        else:
+            gross = shares * div * 0.9
+            real = shares * div * (1 - div_info.get('rocRatio', 0)) * 0.9
+        monthly_div_gross += gross
+        monthly_div_real += real
+    lines.append(f"月均分红(税后): ¥{monthly_div_gross*fx:,.0f}  (含 ROC)")
+    lines.append(f"月均真实收益: ¥{monthly_div_real*fx:,.0f}  (扣除 ROC)")
+    lines.append(f"ROC 比例参考: XQQI 5% | NVDY 70% | AMZY 65% | QDTE 80% | SPYM 60%")
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
 

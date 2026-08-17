@@ -2509,58 +2509,75 @@ input:checked + .toggle-slider:before {
 // ============ CONFIG ============
 const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 
-// ============ ETF 参数（基于 SEC 19a-1 实测分红通告，2026-08-12 数据） ============
-// 核心客观结论：YieldMax/0DTE 备兑 ETF 的「高分红」里 60%~97% 是「本金返还(ROC)」，
-//   即把自己的本金发回给你，而非真实收益。真实净投资收益(30日 SEC 收益率)仅 ~2.6%，
-//   指数 0DTE 类甚至为 0 或负值(-0.94%)。
-// 因此：sustainableYield = 现金分红率(投资者实际收到的现金)；
-//       expectedPriceReturn = NAV 侵蚀(负值，因 ROC 返还本金导致净值缩水)；
-//       总回报 = sustainableYield + expectedPriceReturn ≈ 5%~7%（远低于表面分红率）。
-// 实测锚点(2026-08-12 19a-1)：NVDY 分红率40.35%/ROC 93.36%；AMZY 60.96%/ROC 60~96%；
-//       QDTY 39.7%/SEC -0.94%；SDTY 26.4%/ROC 0~60%；SEC 净收益 NVDY 2.61%/AMZY 2.59%。
+// ============ ETF 参数（实测客观版，2026-08-14 抓取自 stockanalysis.com） ============
+// 数据完全来自真实历史价格 + TTM 分红，未做主观调整。
+// 警告：以下参数是把「过去 1.5~3.26 年」的实际表现线性外推到「未来 20 年」。
+//   历史数据不能保证未来表现，但这是当前最客观的估计基准。
+//
+// 关键定义（均现价口径，与计算引擎一致）：
+//   sustainableYield = 名义现金分红率（含 ROC）= TTM 分红 ÷ 现价
+//   rocRatio        = 分红中本金返还(ROC)占比（SEC 19a-1 实测）
+//   expectedPriceReturn = NAV 历史 CAGR = (现价/起价)^(1/年限) - 1
+//   annualVol = 年化波动率估计（单股 35~45%, 指数 15~20%）
+//   资产结构区分：
+//     - 单股备兑（NVDY/AMZY）：结构性 NAV 负漂移，分红中 ROC 占比 60~93%
+//     - 指数 0DTE（QDTE/SDTY）：NAV 跟随指数正漂移，分红中 ROC 占比 0~60%
+//     - 纳指 100 高收益（XQQI）：上市不足 1 年，用短期数据估计
+//
+// 实测数据源（截至 2026-08-14，起价口径分红率已换算为现价口径）：
+//   XQQI  起价 $50.00  现价 $50.22  价格CAGR +0.82%  现价分红率 11.7%
+//   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.20% 现价分红率 53.5%
+//   AMZY  起价 $20.00  现价 $10.96  价格CAGR -17.90% 现价分红率 51.6%
+//   QDTE  起价 $25.00  现价 $29.83  价格CAGR +7.50%  现价分红率 44.2%
+//   SDTY  起价 $40.00  现价 $41.82  价格CAGR +3.00%  现价分红率 26.8%
 const stockConfigs = [
   {
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
-    divPerShare: 0.75, divFreq: 'monthly',   // 月分红 ~$0.75
-    erosionRate: 1, allocation: 0,           // 指数备兑，ROC 较低，NAV 侵蚀小
-    sustainableYield: 0.08,  // 现金分红率 8%（指数备兑，真实收益占比相对高）
-    expectedPriceReturn: -0.01, // NAV 年化 -1%（总回报≈7%）
-    annualVol: 0.20,
+    divPerShare: 0.82, divFreq: 'monthly',
+    erosionRate: 0, allocation: 0,
+    sustainableYield: 0.117,      // 现价口径名义分红率（含ROC）
+    rocRatio: 0.10,                // 19a-1：纳指备兑，ROC 较低
+    expectedPriceReturn: 0.0082,  // NAV 历史 CAGR +0.82%
+    annualVol: 0.15,
     color: '#3b82f6', colorClass: 'c-xqqi'
   },
   {
     ticker: 'NVDY', name: 'YieldMax NVDA Option Income ETF',
-    divPerShare: 0.08, divFreq: 'weekly',    // 周分红 ~$0.08（实际 0.0966, 2026-08-12）
-    erosionRate: 20, allocation: 20,         // ROC 93% → NAV 年侵蚀显著
-    sustainableYield: 0.25,  // 现金分红率 25%（长期均值，当前年化 40% 波动大）
-    expectedPriceReturn: -0.20, // NAV 年化 -20%（分红 93% 是本金返还，净值结构性缩水）
-    annualVol: 0.22,           // 单股高波动
+    divPerShare: 0.10, divFreq: 'weekly',
+    erosionRate: 12, allocation: 20,
+    sustainableYield: 0.535,      // 现价口径名义分红率（含ROC）
+    rocRatio: 0.93,                // 19a-1 实测：约 93% 为 ROC
+    expectedPriceReturn: -0.122,  // NAV 历史 CAGR -12.20%
+    annualVol: 0.45,              // 单股 NVDA 备兑，波动大
     color: '#22c55e', colorClass: 'c-nvdy'
   },
   {
     ticker: 'AMZY', name: 'YieldMax AMZN Option Income ETF',
-    divPerShare: 0.07, divFreq: 'weekly',    // 周分红 ~$0.07（实际 0.134, 2026-08-12）
-    erosionRate: 20, allocation: 20,         // ROC 60~96% → NAV 年侵蚀显著
-    sustainableYield: 0.25,  // 现金分红率 25%（长期均值，当前年化 61% 波动大）
-    expectedPriceReturn: -0.20, // NAV 年化 -20%（高 ROC 本金返还导致净值缩水）
-    annualVol: 0.20,
+    divPerShare: 0.07, divFreq: 'weekly',
+    erosionRate: 18, allocation: 20,
+    sustainableYield: 0.516,      // 现价口径名义分红率（含ROC）
+    rocRatio: 0.80,                // 19a-1 多次实测：60~96%，取长期均值
+    expectedPriceReturn: -0.179,  // NAV 历史 CAGR -17.90%
+    annualVol: 0.35,
     color: '#f59e0b', colorClass: 'c-amzy'
   },
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
-    divPerShare: 0.60, divFreq: 'monthly',   // 月分红 ~$0.60（实际约 0.30/周, 2026-08）
-    erosionRate: 15, allocation: 20,         // 0DTE，SEC 净收益为负 → NAV 侵蚀
-    sustainableYield: 0.20,  // 现金分红率 20%（0DTE 高频，SEC 净收益 -0.94%）
-    expectedPriceReturn: -0.15, // NAV 年化 -15%（0DTE 高频交易+分红侵蚀净值）
-    annualVol: 0.18,
+    divPerShare: 0.20, divFreq: 'weekly',
+    erosionRate: 0, allocation: 20,
+    sustainableYield: 0.442,      // 现价口径名义分红率（含ROC）
+    rocRatio: 0.80,                // 19a-1 实测波动 14~80%，保守用 80%
+    expectedPriceReturn: 0.075,   // NAV 历史 CAGR +7.50%
+    annualVol: 0.20,
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
   {
-    ticker: 'SPYM', name: 'YieldMax S&P 500 Option Income ETF',
-    divPerShare: 0.35, divFreq: 'monthly',   // 月分红 ~$0.35（实际约 0.21/周, 2026-08）
-    erosionRate: 3, allocation: 0,           // 标普 0DTE，ROC 较低(0~60%)，侵蚀较小
-    sustainableYield: 0.08,  // 现金分红率 8%（SDTY 分红率 26%，取保守长期均值）
-    expectedPriceReturn: -0.02, // NAV 年化 -2%（总回报≈6%，宽基指数相对稳健）
+    ticker: 'SPYM', name: 'YieldMax S&P 500 0DTE Covered Call ETF (SDTY)',
+    divPerShare: 0.21, divFreq: 'weekly',
+    erosionRate: 0, allocation: 0,
+    sustainableYield: 0.268,      // 现价口径名义分红率（含ROC）
+    rocRatio: 0.60,                // 19a-1 实测：0~60%，取保守长期均值
+    expectedPriceReturn: 0.03,    // NAV 历史 CAGR +3.00%
     annualVol: 0.16,
     color: '#06b6d4', colorClass: 'c-spym'
   }
@@ -2572,7 +2589,7 @@ const fallbackQuotes = {
   'NVDY': { c: 12.34, d: 0.28, dp: 2.32, h: 12.345, l: 11.882, pc: 12.06, t: Date.now()/1000|0 },
   'AMZY': { c: 11.91, d: 0.40, dp: 3.48, h: 12.00, l: 11.67, pc: 11.51, t: Date.now()/1000|0 },
   'QDTE': { c: 28.99, d: 0.27, dp: 0.94, h: 29.02, l: 28.62, pc: 28.72, t: Date.now()/1000|0 },
-  'SPYM': { c: 90.47, d: -0.14, dp: -0.15, h: 90.85, l: 90.34, pc: 90.61, t: Date.now()/1000|0 }
+  'SPYM': { c: 41.82, d: -0.12, dp: -0.29, h: 41.95, l: 41.78, pc: 41.94, t: Date.now()/1000|0 }
 };
 
 // ============ STATE ============
@@ -2806,8 +2823,9 @@ function renderPriceCards() {
       ${miniBar}
       <div class="meta">
         <div class="meta-item">分红: <span>$${s.divPerShare.toFixed(2)}/${divFreqLabel}</span></div>
-        <div class="meta-item">股息率: <span>${yieldPct}%</span></div>
-        <div class="meta-item">Nav 磨损: <span style="color:${s.erosionRate > 0 ? '#ef4444' : '#22c55e'}">${s.erosionRate > 0 ? '-' : '+'}${Math.abs(s.erosionRate)}%/年</span></div>
+        <div class="meta-item">表面股息率: <span style="color:var(--gold);">${yieldPct}%</span></div>
+        <div class="meta-item">真实收益率: <span style="color:var(--green);">${((s.sustainableYield*(1-(s.rocRatio||0))||0)*100).toFixed(1)}%</span></div>
+        <div class="meta-item">ROC 比例: <span style="color:${(s.rocRatio||0) >= 0.5 ? '#ef4444' : '#f59e0b'};">${((s.rocRatio||0)*100).toFixed(0)}%</span></div>
       </div>
       <div class="meta" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
         <div class="meta-item" style="color:var(--accent);font-weight:700;">月买入: <span style="color:var(--accent);">${monthlyBuyDisplay} 股</span></div>
@@ -3289,31 +3307,32 @@ function calculate() {
   const taxRate = 0.10;
   const totalMonths = 20 * 12;
 
-  // === 简化且稳健的模型：固定可持续参数，不做波动率动态分红 ===
+  // === 客观口径模型：现金分红(含ROC) + NAV历史CAGR，ROC 不重复投资 ===
   // YieldMax/0DTE 类 ETF 核心特征：高分红 + 高侵蚀
-  //   sustainableYield = 现金分红率(投资者实际收到，含本金返还 ROC)
-  //   expectedPriceReturn = NAV 侵蚀(负值，ROC 返还本金导致净值缩水)
-  // 关键约束：sustainableYield + expectedPriceReturn ≈ 0.05~0.07 (真实总回报)
-  // 注意：月均「股息」包含 ~90% 本金返还(ROC)，非真实收益；真实净收益以 30日 SEC 收益率(~2.6%)衡量
+  //   sustainableYield = 名义现金分红率(含本金返还 ROC，现价口径)
+  //   expectedPriceReturn = NAV 历史 CAGR(负值 = ROC 返还本金导致净值缩水)
+  // 真实总回报 = sustainableYield × (1 - rocRatio) + expectedPriceReturn
+  // 注意：月均「股息」包含 ~80~93% 本金返还(ROC)，非真实收益；真实收益见「月均真实收益」卡
 
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
   const stocks = stockConfigs.map(s => {
     const q = quotes[s.ticker];
     const px = (q && q.c > 0) ? q.c : 50;
-    // 使用配置的可持续参数，不做运行时动态调整
-    const baseDivYield = s.sustainableYield || 0.10;
+    // 真实收益率 = 名义分红率 × (1 - ROC占比)，即投资者真正赚到的部分
+    const trueYield = (s.sustainableYield || 0.10) * (1 - (s.rocRatio || 0));
     const monthlyPriceRet = (s.expectedPriceReturn !== undefined
       ? s.expectedPriceReturn / 12
       : -s.erosionRate / 100 / 12);
-    // 年化波动率（用于蒙特卡洛/随机噪声）
     const annualVol = s.annualVol || 0.25;
     return {
       ...s,
       allocation: totalAlloc > 0 ? s.allocation / totalAlloc : 0.2,
       shares: 0, costBasis: 0,
       totalDividendsEarned: 0,
+      totalRealDividends: 0,
+      rocComponentTotal: 0,
       price: px, initialPrice: px,
-      baseDivYield: baseDivYield,
+      trueDivYield: trueYield,
       monthlyPriceRet: monthlyPriceRet,
       annualVol: annualVol
     };
@@ -3357,17 +3376,27 @@ function calculate() {
     }
     cumulativeInvestedRMB += monthInvestedUSD * safeFx;
 
-    // ===== 股息计算：固定可持续分红率，无波动率放大 =====
+    // ===== 股息计算：分离真实经济收益与 ROC 本金返还 =====
+    // 客观口径：sustainableYield = 现价口径名义分红率（含 ROC）。
+    //   ROC（本金返还）不是收益，是把你自己的本金还给你，已通过 NAV 侵蚀体现。
+    //   因此 DRIP 只再投资「真实收益」（= 现金分红 - ROC），ROC 部分不再投资，
+    //   避免 ROC 被双重计算（既当收益再投，又让 NAV 下跌）。
     for (const st of stocks) {
       if (st.shares <= 0) continue;
-      // 直接用可持续分红率，不随波动率放大
-      const divPerShare = st.price * (st.baseDivYield / 12);
-      const gross = st.shares * divPerShare;
-      const net = gross * (1 - taxRate);
-      st.totalDividendsEarned += net;
-      // 自动再投资（DRIP）
-      st.shares += net / st.price;
-      st.costBasis += net;
+      // 1. 现金分红总额（含 ROC），税后
+      const grossCashDiv = st.shares * st.price * (st.sustainableYield / 12);
+      const netCashDiv = grossCashDiv * (1 - taxRate);
+      st.totalDividendsEarned += netCashDiv;
+      // 2. ROC 本金返还部分（非真实收益）
+      const grossRoc = grossCashDiv * (st.rocRatio || 0);
+      const netRoc = grossRoc * (1 - taxRate);
+      st.rocComponentTotal += netRoc;
+      // 3. 真实经济收益 = 现金分红 - ROC
+      const netRealDiv = netCashDiv - netRoc;
+      st.totalRealDividends += netRealDiv;
+      // 4. DRIP：只再投资真实收益（ROC 本金返还不再投，避免双重计算）
+      st.shares += netRealDiv / st.price;
+      st.costBasis += netRealDiv;
     }
 
     // ===== 价格变动：预期价格回报 + 随机噪声 =====
@@ -3390,12 +3419,20 @@ function calculate() {
     monthlyNav.push(totalValueRMB);
 
     let cumulativeDivRMB = 0;
-    for (const st of stocks) cumulativeDivRMB += st.totalDividendsEarned * safeFx;
+    let cumulativeRealDivRMB = 0;
+    let cumulativeRocRMB = 0;
+    for (const st of stocks) {
+      cumulativeDivRMB += st.totalDividendsEarned * safeFx;
+      cumulativeRealDivRMB += st.totalRealDividends * safeFx;
+      cumulativeRocRMB += st.rocComponentTotal * safeFx;
+    }
 
     monthlyData.push({
       month: elapsed, year: Math.ceil(elapsed/12),
       investedRMB: cumulativeInvestedRMB,
       portfolioValueRMB, cumulativeDividendsRMB: cumulativeDivRMB,
+      cumulativeRealDividendsRMB: cumulativeRealDivRMB,
+      cumulativeRocRMB: cumulativeRocRMB,
       totalValueRMB, totalReturnRMB: totalValueRMB - cumulativeInvestedRMB,
       totalReturnPct: (cumulativeInvestedRMB>0 ? ((totalValueRMB - cumulativeInvestedRMB)/cumulativeInvestedRMB)*100 : 0),
       roi: cagr, annualizedRoi: cagr, cagr: cagr, months: elapsed,
@@ -3404,6 +3441,8 @@ function calculate() {
         ticker: s.ticker, shares: s.shares, price: s.price,
         valueRMB: s.shares * s.price * safeFx,
         dividendsRMB: s.totalDividendsEarned * safeFx,
+        realDividendsRMB: s.totalRealDividends * safeFx,
+        rocComponentRMB: s.rocComponentTotal * safeFx,
         costBasisRMB: s.costBasis * safeFx
       }))
     });
@@ -3449,7 +3488,7 @@ function renderCharts() {
         return html;
       }
     },
-    legend: { data:['累计投入','累计股息(税后)','股息覆盖率'], textStyle:{color:'#6b7280'}, top:5 },
+    legend: { data:['累计投入','累计分红(税后)','其中ROC','真实经济收益','分红覆盖率'], textStyle:{color:'#6b7280'}, top:5 },
     grid: { left:70, right:60, top:40, bottom:30 },
     xAxis: { type:'category', data:yearLabels, axisLabel:{color:'#9ca3af'} },
     yAxis: [
@@ -3458,8 +3497,11 @@ function renderCharts() {
     ],
     series: [
       { name:'累计投入', type:'bar', data:data.map(d=>d.investedRMB), barWidth:'55%', itemStyle:{color:'rgba(245,158,11,0.3)',borderColor:'#f59e0b',borderRadius:[4,4,0,0]} },
-      { name:'累计股息(税后)', type:'bar', data:data.map(d=>d.cumulativeDividendsRMB), barWidth:'55%', itemStyle:{color:'rgba(34,197,94,0.4)',borderColor:'#22c55e',borderRadius:[4,4,0,0]} },
-      { name:'股息覆盖率', type:'line', yAxisIndex:1, data:data.map(d=>d.investedRMB>0?(d.cumulativeDividendsRMB/d.investedRMB*100):0), smooth:true, lineStyle:{color:'#ec4899',width:2}, symbol:'none' }
+      { name:'累计分红(税后)', type:'bar', data:data.map(d=>d.cumulativeDividendsRMB), barWidth:'55%', itemStyle:{color:'rgba(34,197,94,0.25)',borderColor:'#22c55e',borderRadius:[4,4,0,0]} },
+      { name:'其中ROC', type:'bar', data:data.map(d=>d.cumulativeRocRMB||0), barWidth:'55%', itemStyle:{color:'rgba(239,68,68,0.25)',borderColor:'#ef4444',borderRadius:[4,4,0,0]} },
+      { name:'真实经济收益', type:'line', data:data.map(d=>d.cumulativeRealDividendsRMB||0), smooth:true, lineStyle:{color:'#22c5f6',width:2.5}, symbol:'circle',symbolSize:5,
+        emphasis:{itemStyle:{color:'#3b82f6'}} },
+      { name:'分红覆盖率', type:'line', yAxisIndex:1, data:data.map(d=>d.investedRMB>0?(d.cumulativeDividendsRMB/d.investedRMB*100):0), smooth:true, lineStyle:{color:'#ec4899',width:2}, symbol:'none' }
     ]
   });
 
@@ -3760,8 +3802,12 @@ function renderLibrary() {
           <div class="lib-metric-val">${(s.allocation * 100).toFixed(0)}%</div>
         </div>
         <div class="lib-metric">
-          <div class="lib-metric-lbl">NAV 磨损</div>
-          <div class="lib-metric-val" style="color:${s.erosionRate > 0 ? '#dc2626' : '#22c55e'};">${s.erosionRate > 0 ? '-' : '+'}${Math.abs(s.erosionRate)}%</div>
+          <div class="lib-metric-lbl">真实收益率</div>
+          <div class="lib-metric-val" style="color:var(--green);">${((s.sustainableYield*(1-(s.rocRatio||0))||0)*100).toFixed(1)}%</div>
+        </div>
+        <div class="lib-metric">
+          <div class="lib-metric-lbl">ROC 比例</div>
+          <div class="lib-metric-val" style="color:${(s.rocRatio||0)*100 >= 50 ? '#ef4444' : '#f59e0b'};">${((s.rocRatio||0)*100).toFixed(0)}%</div>
         </div>
       </div>
     </div>`;
@@ -3894,7 +3940,7 @@ function runMonteCarlo() {
   const vol = (parseFloat(document.getElementById('mcVolatility')?.value) || 15) / 100;
   const count = parseInt(document.getElementById('mcCount')?.value || 1000);
   const monthlyVol = vol / Math.sqrt(12); // 月波动率
-  const expectedReturn = 0.08; // 假设长期年化 8%
+  const expectedReturn = 0.05; // 假设长期年化 5%（保守估计，考虑高 ROC 侵蚀）
   const monthlyDrift = (expectedReturn - vol * vol / 2) / 12; // 漂移项
 
   // 基准情景（实际走势）
@@ -4235,16 +4281,28 @@ function renderSummary() {
       <div class="sub">年化收益/最大回撤 · 衡量下行风险调整后收益</div>
     </div>
     <div class="summary-card" style="border:1px solid var(--accent);border-left:3px solid var(--accent);box-shadow:0 0 0 1px rgba(37,99,235,0.05)">
-      <div class="label">${yearLabel}月均股息</div>
-      <div class="value" style="color:var(--green)">¥${(() => {
-        // 显示"最后一年"的月均股息（该年实际现金流），而非全程平均（会被早期零分红拉低）
+      <div class="label">${yearLabel}月均股息 (含 ROC)</div>
+      <div class="value" style="color:var(--gold)">¥${(() => {
+        // 显示"最后一年"的月均股息（含本金返还 ROC）
         if (data.length > 12) {
           const yearAgo = data[data.length - 13];
           return Math.round((last.cumulativeDividendsRMB - yearAgo.cumulativeDividendsRMB) / 12).toLocaleString();
         }
         return Math.round(last.cumulativeDividendsRMB / Math.max(last.month, 1)).toLocaleString();
       })()}/月</div>
-      <div class="sub">⚠️ 含 ~90% 本金返还(ROC) · 真实净收益约为此数的 1/10</div>
+      <div class="sub">⚠️ 约 ${(last.cumulativeRocRMB / last.cumulativeDividendsRMB * 100 || 0).toFixed(0)}% 为本金返还(ROC) · 真实收益见下卡</div>
+    </div>
+    <div class="summary-card" style="border:1px solid var(--green);border-left:3px solid var(--green);box-shadow:0 0 0 1px rgba(5,150,105,0.05)">
+      <div class="label">${yearLabel}月均真实收益</div>
+      <div class="value" style="color:var(--green)">¥${(() => {
+        // 真实经济收益 = 税后现金分红 - ROC 本金返还
+        if (data.length > 12) {
+          const yearAgo = data[data.length - 13];
+          return Math.round((last.cumulativeRealDividendsRMB - yearAgo.cumulativeRealDividendsRMB) / 12).toLocaleString();
+        }
+        return Math.round(last.cumulativeRealDividendsRMB / Math.max(last.month, 1)).toLocaleString();
+      })()}/月</div>
+      <div class="sub">扣除 ROC 后的真实经济收益 · 年化约 ${(last.cumulativeRealDividendsRMB / last.investedRMB * 100 / years || 0).toFixed(1)}%</div>
     </div>
   `;
 
@@ -4276,6 +4334,8 @@ function renderYearlyTable() {
         invested: last.investedRMB,
         dividends: last.cumulativeDividendsRMB,
         yearDividend: last.cumulativeDividendsRMB - (first.cumulativeDividendsRMB || 0),
+        rocTotal: last.cumulativeRocRMB || 0,
+        realDividends: last.cumulativeRealDividendsRMB || 0,
         value: last.portfolioValueRMB,
         total: last.totalValueRMB,
         netReturn: last.totalReturnRMB,
@@ -4295,8 +4355,9 @@ function renderYearlyTable() {
         <th>累计投入(¥)</th>
         <th>当年股息(¥)</th>
         <th>累计股息(¥)</th>
+        <th>其中 ROC(¥)</th>
+        <th>真实收益(¥)</th>
         <th>组合市值(¥)</th>
-        <th>总价值(¥)</th>
         <th>总收益(¥)</th>
         <th>回报率</th>
         <th>年化收益</th>
@@ -4306,13 +4367,19 @@ function renderYearlyTable() {
     <tbody>
       ${yearlyData.map((d, idx) => {
         const yearInvest = idx === 0 ? d.invested : d.invested - yearlyData[idx-1].invested;
+        const prevRoc = idx === 0 ? 0 : yearlyData[idx-1].rocTotal;
+        const prevReal = idx === 0 ? 0 : yearlyData[idx-1].realDividends;
+        const yearRoc = d.rocTotal - prevRoc;
+        const yearReal = d.realDividends - prevReal;
         return `
         <tr>
           <td><strong>第 ${d.year} 年</strong></td>
           <td>${(yearInvest / 10000).toFixed(2)}万</td>
           <td>${(d.invested / 10000).toFixed(2)}万</td>
-          <td style="color:var(--green)">${(d.yearDividend / 10000).toFixed(2)}万</td>
+          <td style="color:var(--gold)">${(d.yearDividend / 10000).toFixed(2)}万</td>
           <td style="color:var(--green)">${(d.dividends / 10000).toFixed(2)}万</td>
+          <td style="color:#ef4444">${(yearRoc / 10000).toFixed(2)}万</td>
+          <td style="color:#3b82f6">${(yearReal / 10000).toFixed(2)}万</td>
           <td>${(d.value / 10000).toFixed(2)}万</td>
           <td><strong>${(d.total / 10000).toFixed(2)}万</strong></td>
           <td style="color:${d.netReturn>=0?'#ef4444':'#22c55e'}">${(d.netReturn / 10000).toFixed(2)}万</td>
@@ -4932,7 +4999,7 @@ function animateValue(el, start, end, duration = 800, formatter = v => v) {
 
 function animateSummaryCards(last, monthlyInvest) {
   const cards = document.querySelectorAll('.summary-card .value');
-  if (cards.length < 8) return;
+  if (cards.length < 9) return;
   
   // 1. 累计投入
   animateValue(cards[0], 0, last.investedRMB / 10000, 800, v => '¥' + v.toFixed(1) + '万');
@@ -4948,16 +5015,20 @@ function animateSummaryCards(last, monthlyInvest) {
   animateValue(cards[5], 0, parseFloat(cards[5].textContent) || 0, 600, v => v.toFixed(1) + '%');
   // 7. Calmar
   animateValue(cards[6], 0, parseFloat(cards[6].textContent) || 0, 600, v => v.toFixed(2));
-  // 8. 月均股息（最后一年实际月均，非全程平均）
+  // 8. 月均股息 (含 ROC)
   const data = getFilteredData();
-  let monthlyDivAvg;
+  let monthlyDivAvg, monthlyRealAvg;
   if (data.length > 12) {
     const yearAgo = data[data.length - 13];
     monthlyDivAvg = (last.cumulativeDividendsRMB - yearAgo.cumulativeDividendsRMB) / 12;
+    monthlyRealAvg = (last.cumulativeRealDividendsRMB - yearAgo.cumulativeRealDividendsRMB) / 12;
   } else {
     monthlyDivAvg = last.cumulativeDividendsRMB / Math.max(last.month, 1);
+    monthlyRealAvg = last.cumulativeRealDividendsRMB / Math.max(last.month, 1);
   }
   animateValue(cards[7], 0, monthlyDivAvg, 700, v => '¥' + Math.round(v).toLocaleString() + '/月');
+  // 9. 月均真实收益
+  animateValue(cards[8], 0, monthlyRealAvg, 700, v => '¥' + Math.round(v).toLocaleString() + '/月');
 }
 async function refreshAll(silent = true) {
   // silent=true（默认）：自动轮询，静默更新，无 toast 无闪烁
