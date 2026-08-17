@@ -323,6 +323,87 @@ def fetch_fx():
         return 6.75  # 最后兜底
 
 
+def get_market_status():
+    """判断美股当前所处的交易时段（基于美东时间 ET）
+
+    返回值说明：
+      - status: 'pre' (盘前 04:00-09:30) / 'open' (盘中 09:30-16:00) /
+                'after' (盘后 16:00-20:00) / 'closed' (收盘)
+      - label:  中文短标签
+      - next_event_at: 下个时段切换的 ISO 字符串（前端可显示「距开盘还有 02:31」）
+      - data_freshness: 数据时效说明
+        - 'live'       盘中有真实 tick
+        - 'after_hours' 盘后，新浪/东财基本冻结在收盘价
+        - 'pre_market' 盘前，仅部分源更新
+        - 'stale'      收盘/周末/节假日，所有源冻结
+    """
+    # 美东时间 = UTC-5（冬令时）或 UTC-4（夏令时）
+    # 简化处理：服务端用 UTC，再人工减 4~5 小时估算 ET
+    now_utc = datetime.utcnow()
+    # 美东时间（DST 估算：3-11 月是 EDT = UTC-4，其他是 EST = UTC-5）
+    is_dst = 3 <= now_utc.month <= 11
+    et_offset = -4 if is_dst else -5
+    now_et = now_utc + timedelta(hours=et_offset)
+
+    weekday = now_et.weekday()  # 0=Mon ... 6=Sun
+    hour = now_et.hour
+    minute = now_et.minute
+    et_minutes = hour * 60 + minute
+
+    # 周末：周六/周日全天 closed
+    if weekday >= 5:
+        return {
+            'status': 'closed',
+            'label': '周末休市',
+            'et_time': now_et.strftime('%H:%M ET'),
+            'next_event': '下周一 09:30 ET 开盘',
+            'data_freshness': 'stale',
+            'description': '数据为上周五收盘价，所有源在周末不更新',
+        }
+
+    # 周一到周五
+    if 4 * 60 <= et_minutes < 9 * 60 + 30:
+        # 盘前 04:00-09:30 ET
+        return {
+            'status': 'pre',
+            'label': '盘前',
+            'et_time': now_et.strftime('%H:%M ET'),
+            'next_event': '09:30 ET 开盘',
+            'data_freshness': 'pre_market',
+            'description': '盘前交易中，新浪/东财仅部分标的更新',
+        }
+    elif 9 * 60 + 30 <= et_minutes < 16 * 60:
+        # 盘中 09:30-16:00 ET
+        return {
+            'status': 'open',
+            'label': '盘中',
+            'et_time': now_et.strftime('%H:%M ET'),
+            'next_event': '16:00 ET 收盘',
+            'data_freshness': 'live',
+            'description': '实时行情，每 30 秒自动刷新',
+        }
+    elif 16 * 60 <= et_minutes < 20 * 60:
+        # 盘后 16:00-20:00 ET
+        return {
+            'status': 'after',
+            'label': '盘后',
+            'et_time': now_et.strftime('%H:%M ET'),
+            'next_event': '20:00 ET 盘后结束',
+            'data_freshness': 'after_hours',
+            'description': '盘后交易中，新浪/东财/腾讯冻结在收盘价',
+        }
+    else:
+        # 20:00 - 次日 04:00 ET
+        return {
+            'status': 'closed',
+            'label': '已收盘',
+            'et_time': now_et.strftime('%H:%M ET'),
+            'next_event': '次日 04:00 ET 盘前',
+            'data_freshness': 'stale',
+            'description': '数据为收盘价，所有源停止更新',
+        }
+
+
 def fetch_market_batch(secid_map):
     """批量拉取大盘行情（腾讯 qt.gtimg.cn，一次请求多个标的）
 
@@ -474,6 +555,8 @@ def get_market_data():
     }
 
     _market_cache['ts'] = now
+    # 添加市场时段状态，前端用于提示数据时效
+    data['market'] = get_market_status()
     _market_cache['data'] = data
     ok = len(idx_items) + len(sec_items)
     print(f"[Market] indices={len(idx_items)} sectors={len(sec_items)} sentiment={len(data['sentiment']['items'])}")
@@ -609,7 +692,7 @@ def get_all_quotes():
     fx, fx_err = fetch_fx_with_timeout(timeout=8)
 
     _cache['ts'] = now
-    _cache['data'] = {'quotes': result, 'fx': fx, 'ok': ok}
+    _cache['data'] = {'quotes': result, 'fx': fx, 'ok': ok, 'market': get_market_status()}
     return _cache['data']
 
 
@@ -953,6 +1036,10 @@ def scheduler_loop():
         scheduled = load_schedule()
 
         # ⚠️ 防双触发：60秒窗口内不重复发送（防 rolling deploy 多实例并发）
+        # ⚠️ 仅在盘中时间发送邮件：盘后/周末/收盘时不再发送，避免用户看到冻结数据的假象
+        market_status = get_market_status()
+        market_open = market_status['status'] == 'open'
+
         if now in scheduled and now not in _sent_today:
             # 检查距上次发送是否 < 60 秒
             if _last_send_time:
@@ -961,19 +1048,34 @@ def scheduler_loop():
                     time.sleep(10)
                     continue
 
-            _sent_today.add(now)
-            save_sent_log(_sent_today)
-            holdings = load_holdings()
-            if any(v > 0 for v in holdings.values()):
-                pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings)})
-                print(f"[Scheduler] 入队: {now}")
+            # 仅在盘中时才入队发送
+            if market_open:
+                _sent_today.add(now)
+                save_sent_log(_sent_today)
+                holdings = load_holdings()
+                if any(v > 0 for v in holdings.values()):
+                    pending.put({'today_slot': today, 'now': now, 'holdings': dict(holdings)})
+                    print(f"[Scheduler] 入队(盘中): {now}")
+                else:
+                    print(f"[Scheduler] 无持仓，跳过 ({now})")
+                    append_email_log({
+                        'time': f"{today} {now}",
+                        'status': 'skipped',
+                        'subject': '',
+                        'message': '无持仓'
+                    })
             else:
-                print(f"[Scheduler] 无持仓，跳过 ({now})")
+                # 非盘中时间：不发送邮件，但记录已访问时间防止当分钟内重复尝试
+                _sent_today.add(now)
+                save_sent_log(_sent_today)
+                fmt = market_status.get('label', 'unknown')
+                print(f"[Scheduler] 跳过(非盘中): {now} ({fmt}) - 数据冻结，邮件已跳过")
+                # 记录盘后/周末跳过的日志
                 append_email_log({
                     'time': f"{today} {now}",
-                    'status': 'skipped',
+                    'status': 'skipped_market_hours',
                     'subject': '',
-                    'message': '无持仓'
+                    'message': f'市场{fmt}，数据冻结，邮件发送已跳过'
                 })
 
         # 每 10 秒检查一次（更密集）

@@ -325,6 +325,59 @@ body::after {
   box-shadow: 0 0 5px rgba(5,150,105,0.4);
 }
 .live-dot.stale { background: var(--text-dim); box-shadow: none; }
+.live-dot.pre { background: var(--gold); box-shadow: 0 0 4px rgba(217,119,6,0.35); }
+
+/* ============ MARKET STATUS BADGES ============ */
+/* 行情时段徽章（盘前/盘中/盘后/收盘）*/
+.market-status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 11px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+  white-space: nowrap; cursor: help;
+  transition: all 0.2s ease;
+}
+.market-status-pill .pulse {
+  width: 6px; height: 6px; border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+.market-status-pill.live {
+  background: rgba(5,150,105,0.12); color: var(--green);
+  border: 1px solid rgba(5,150,105,0.25);
+}
+.market-status-pill.live .pulse {
+  background: var(--green); box-shadow: 0 0 0 0 rgba(5,150,105,0.5);
+}
+.market-status-pill.pre {
+  background: rgba(37,99,235,0.10); color: var(--accent);
+  border: 1px solid rgba(37,99,235,0.25);
+}
+.market-status-pill.pre .pulse {
+  background: var(--accent);
+}
+.market-status-pill.after {
+  background: rgba(217,119,6,0.12); color: var(--gold);
+  border: 1px solid rgba(217,119,6,0.28);
+}
+.market-status-pill.after .pulse {
+  background: var(--gold);
+}
+.market-status-pill.closed {
+  background: rgba(107,114,128,0.12); color: var(--text-dim);
+  border: 1px solid rgba(107,114,128,0.25);
+}
+.market-status-pill.closed .pulse {
+  background: var(--text-dim); animation: none;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(5,150,105,0.6); }
+  70%  { box-shadow: 0 0 0 6px rgba(5,150,105,0); }
+  100% { box-shadow: 0 0 0 0 rgba(5,150,105,0); }
+}
+/* 暗色主题下的徽章颜色微调 */
+:root[data-theme="dark"] .market-status-pill.live   { color: #34d399; }
+:root[data-theme="dark"] .market-status-pill.pre    { color: #93c5fd; }
+:root[data-theme="dark"] .market-status-pill.after  { color: #fbbf24; }
+:root[data-theme="dark"] .market-status-pill.closed { color: #94a3b8; }
 
 /* Mini K 线 / 日内位置条 */
 .mini-bar-wrap {
@@ -2136,6 +2189,7 @@ input:checked + .toggle-slider:before {
         <span class="sentiment-label" id="sentimentLabel">加载中</span>
       </div>
       <span class="market-ts" id="marketTs"></span>
+      <span id="marketStatusBadge" style="margin-left:8px;"></span>
       <button class="refresh-btn" id="marketRefreshBtn" style="padding:6px 12px;font-size:10px;" title="重新拉取大盘数据">
         <span class="rf-icon">↻</span>
       </button>
@@ -2501,7 +2555,7 @@ input:checked + .toggle-slider:before {
   </div>
 
   <div class="footer">
-    数据源：本地代理 (东方财富+Finnhub) &nbsp;|&nbsp; 每30秒自动刷新 &nbsp;|&nbsp; 上次更新 <span id="lastUpdate">--</span>
+    数据源：本地代理 (东方财富+Finnhub) &nbsp;|&nbsp; <span id="marketStatusFooter">盘中每30秒刷新，盘后/周末保持收盘价</span> &nbsp;|&nbsp; 上次更新 <span id="lastUpdate">--</span>
   </div>
 </div>
 
@@ -2595,6 +2649,7 @@ const fallbackQuotes = {
 // ============ STATE ============
 let quotes = JSON.parse(JSON.stringify(fallbackQuotes));
 let quoteFetchStatus = {}; // 'live' | 'cached' | 'error'
+let marketStatus = null;   // 后端返回的美股时段状态
 let fxRate = 6.75;
 let chartInstances = {};
 let projectionData = null;
@@ -2705,10 +2760,18 @@ async function fetchAllQuotes() {
       const result = await resp.json();
       if (!result || !result.quotes) continue;
 
-      const { quotes: serverQuotes, fx: serverFx } = result;
+      const { quotes: serverQuotes, fx: serverFx, market: serverMarket } = result;
       if (serverFx) fxRate = serverFx;
       // 归一化：fxRate 必须是有效正数，否则回退到默认 6.75，避免后续计算出现 NaN/Infinity
       if (!(Number.isFinite(fxRate) && fxRate > 0)) fxRate = 6.75;
+      // 保存市场状态（盘前/盘中/盘后/收盘）
+      if (serverMarket) marketStatus = serverMarket;
+
+      // 数据时效判断：只有盘中（data_freshness === 'live'）拿到的价格才是真实时 tick。
+      // 盘后/盘前/周末，新浪/东财的 c 字段冻结在收盘价，虽仍是有效数字，但并非实时。
+      // 因此不能仅凭 q.c > 0 就标 'live'，否则盘后会显示误导性的绿色"实时"脉冲点。
+      const freshness = serverMarket && serverMarket.data_freshness;
+      const isTrulyLive = freshness === 'live';
 
       let okCount = 0;
       stockConfigs.forEach(s => {
@@ -2716,7 +2779,8 @@ async function fetchAllQuotes() {
         if (q && q.c > 0) {
           const oldPrice = quotes[s.ticker] ? quotes[s.ticker].c : null;
           quotes[s.ticker] = q;
-          quoteFetchStatus[s.ticker] = 'live';
+          // 盘中→live；盘后/盘前→frozen（收盘价，非实时）；周末/收盘→closed
+          quoteFetchStatus[s.ticker] = isTrulyLive ? 'live' : freshness;
           if (oldPrice && Math.abs(oldPrice - q.c) > 0.001) {
             const card = document.querySelector(`.price-card.${s.colorClass}`);
             if (card) { card.classList.add('updated'); setTimeout(() => card.classList.remove('updated'), 1000); }
@@ -2737,6 +2801,29 @@ async function fetchAllQuotes() {
 }
 
 // 汇率已在 fetchAllQuotes 中一起更新，不再单独获取
+
+// ============ MARKET STATUS BADGE ============
+// 根据后端返回的 market 状态对象生成时段徽章
+// status: 'open'(盘中) / 'pre'(盘前) / 'after'(盘后) / 'closed'(收盘)
+function renderMarketBadge(m) {
+  if (!m || !m.status) return '';
+  const statusClass = m.status;
+  const statusText = {
+    open:   '盘中实时',
+    pre:    '盘前',
+    after:  '盘后',
+    closed: '已收盘',
+  }[m.status] || m.status;
+  const tooltip = [
+    m.label,
+    m.et_time,
+    m.description,
+    m.next_event ? ('下一时段：' + m.next_event) : ''
+  ].filter(Boolean).join('\n');
+  return `<span class="market-status-pill ${statusClass}" title="${tooltip}">
+    <span class="pulse</span>${statusText}
+ </span>`;
+}
 
 // ============ RENDER PRICE CARDS ============
 function renderPriceCards() {
@@ -2792,9 +2879,19 @@ function renderPriceCards() {
     }
     monthlyBuy = Number.isFinite(monthlyBuy) ? monthlyBuy : 0;
     const safeMonthlyBuyUSD = Number.isFinite(monthlyBuyUSD) ? monthlyBuyUSD : 0;
-    const isLive = quoteFetchStatus[s.ticker] === 'live';
-    const liveClass = isLive ? 'live-dot' : 'live-dot stale';
-    const liveTitle = isLive ? '实时数据' : '缓存数据';
+    // 数据时效四态：live(盘中实时) / pre_market(盘前) / after_hours(盘后，冻结收盘价) / stale(周末/收盘) / cached(本地缓存兜底)
+    const qStatus = quoteFetchStatus[s.ticker];
+    const isLive = qStatus === 'live';
+    const isFrozen = (qStatus === 'after_hours' || qStatus === 'stale');
+    const liveClass = isLive ? 'live-dot' : (isFrozen ? 'live-dot stale' : 'live-dot pre');
+    const liveTitleMap = {
+      live: '盘中实时数据',
+      pre_market: '盘前数据（部分更新）',
+      after_hours: '盘后数据（冻结在收盘价）',
+      stale: '已收盘/周末（收盘价）',
+      cached: '本地缓存兜底',
+    };
+    const liveTitle = liveTitleMap[qStatus] || '缓存数据';
 
     // 迷你 K 线：(l → c → h) — 当前位置在日内区间的位置
     let miniBar = '';
@@ -2816,6 +2913,7 @@ function renderPriceCards() {
       <div class="color-line"></div>
       <div class="ticker" style="color:${s.color}">${s.ticker} <span class="${liveClass}" title="${liveTitle}"></span></div>
       <div class="name">${s.name}</div>
+      ${marketStatus ? renderMarketBadge(marketStatus) : ""}
       <div class="price">$${price > 0 ? price.toFixed(2) : '加载中'} <span class="price-cny">¥${price > 0 ? (price * safeFx).toFixed(2) : '--'}</span></div>
       <div class="change" style="color:${isUp ? '#ef4444' : '#22c55e'}">
         ${price > 0 ? (isUp ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + ' (' + (isUp ? '+' : '') + changePct.toFixed(2) + '%)' : '实时获取中...'}
@@ -2913,7 +3011,7 @@ function renderMarketPanel() {
     sentBadge.style.background = d.composite.color + '10';
   }
 
-  // Timestamp
+  // Timestamp + Market Status
   const tsEl = document.getElementById('marketTs');
   if (tsEl) {
     if (d.indices.items.length) {
@@ -2930,6 +3028,12 @@ function renderMarketPanel() {
     } else {
       tsEl.textContent = '';
     }
+  }
+
+  // 市场时段状态徽章（盘前/盘中/盘后/收盘）——来自 /api/market 返回的 market 对象
+  const marketBadgeEl = document.getElementById('marketStatusBadge');
+  if (marketBadgeEl && d.market) {
+    marketBadgeEl.innerHTML = renderMarketBadge(d.market);
   }
 
   // -- Indices Row --
@@ -5087,14 +5191,30 @@ async function refreshAll(silent = true) {
     const okCount = await fetchAllQuotes();  // 同时获取股价和汇率
     clearTimeout(forceHideTimer);
 
+    // 根据数据时效给出更准确的状态文案
+    const freshness = marketStatus && marketStatus.data_freshness;
+    const statusLabelMap = {
+      live: '盘中实时',
+      pre_market: '盘前',
+      after_hours: '盘后(冻结)',
+      stale: '收盘/周末',
+      cached: '缓存',
+    };
+    const label = freshness ? statusLabelMap[freshness] || freshness : '未知';
+
     if (okCount === 5) {
       badge.classList.remove('refreshing', 'error', 'warning');
-      document.getElementById('statusText').textContent = `实时 (${okCount}/5)`;
-      if (!silent) showToast('success', '✓ 数据已更新', `成功获取 ${okCount}/5 个股票实时报价`);
+      document.getElementById('statusText').textContent = `${label} (${okCount}/5)`;
+      if (!silent) {
+        const msg = freshness === 'live'
+          ? `成功获取 ${okCount}/5 个股票实时报价`
+          : `成功获取 ${okCount}/5 个股票报价（当前${label}，价格为收盘价）`;
+        showToast('success', '✓ 数据已更新', msg);
+      }
     } else if (okCount > 0) {
       badge.classList.remove('refreshing', 'error');
       badge.classList.add('warning');
-      document.getElementById('statusText').textContent = `部分 (${okCount}/5)`;
+      document.getElementById('statusText').textContent = `${label}·部分 (${okCount}/5)`;
       if (!silent) showToast('warning', '部分数据更新', `成功 ${okCount}/5 个，${5-okCount} 个使用缓存`);
     } else {
       badge.classList.remove('refreshing', 'warning');
@@ -5109,6 +5229,19 @@ async function refreshAll(silent = true) {
     }
     document.getElementById('fxRate').textContent = (Number.isFinite(fxRate) && fxRate > 0 ? fxRate : 6.75).toFixed(4);
     document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('zh-CN');
+    // 更新底部状态栏的市场时段提示
+    const footer = document.getElementById('marketStatusFooter');
+    if (footer && marketStatus) {
+      const ft = marketStatus.data_freshness;
+      const footerMap = {
+        live: '盘中：每 30 秒自动刷新实时行情',
+        pre_market: '盘前：仅部分标的更新，非实时',
+        after_hours: '盘后：价格冻结在收盘价',
+        stale: '已收盘/周末：所有价格为收盘价',
+        cached: '缓存数据',
+      };
+      footer.textContent = footerMap[ft] || '数据时效未知';
+    }
     saveCache();
   } catch(e) {
     clearTimeout(forceHideTimer);
