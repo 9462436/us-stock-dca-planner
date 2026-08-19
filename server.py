@@ -257,11 +257,18 @@ def fetch_eastmoney(secid):
 
 def fetch_sina(sina_code):
     """新浪美股行情（稳定、无鉴权、纯文本）
-    字段顺序: 名称,最新价,涨跌额,时间,涨跌幅,开盘价,最高价,最低价,成交量,昨日收盘价,...
 
-    关键: 对于 NAV 持续复权调整的 ETF（如 NVDY/AMZY 等期权收益型），
-    新浪 d 字段是「复权累计变动」（含分红除权），不是昨收差异。
-    直接用新浪给的 dp（涨跌幅）反推昨收：pc = c / (1 + dp/100)
+    新浪美股 (gb_ 前缀) 真实字段顺序（实测 2026-08-18 验证）:
+      [0] 名称, [1] 最新价, [2] 涨跌额(复权累计,不可靠), [3] 时间,
+      [4] 涨跌幅%(对高频分红ETF做了除权调整,不可靠),
+      [5] 昨收? NO → 实际是昨收=字段[26]
+      [6] 今开, [7] 最高, [8] 最低, [9] 52周高, ...
+      [26] = 真实昨收价(与东财 f60 完全一致, 权威)
+      [27..] 其余
+
+    关键: 对于 NAV 持续复权调整的 ETF（NVDY/AMZY 等期权收益型），
+    新浪 dp 字段做了除权处理, 不能用 dp 反推昨收（会严重低估涨跌幅）。
+    真实昨收价在 fields[26]，与 EastMoney f60 完全一致。
     """
     url = f"https://hq.sinajs.cn/list={sina_code}"
     req = urllib.request.Request(url)
@@ -271,16 +278,18 @@ def fetch_sina(sina_code):
     if '=""' in raw or '=' not in raw:
         return None
     fields = raw.split('"')[1].split(',')
-    if len(fields) < 8:
+    if len(fields) < 27:
         return None
     price = float(fields[1]) if fields[1] else 0
-    change_pct = float(fields[4]) if fields[4] else 0
-    open_price = float(fields[5]) if fields[5] else price
-    high = float(fields[6]) if fields[6] else price
-    low = float(fields[7]) if fields[7] else price
-    # 用 dp 反推昨收，避免 d 字段对高频分红 ETF 不可靠的问题
-    prev_close = price / (1 + change_pct / 100) if price > 0 else price
+    open_price = float(fields[6]) if fields[6] else price
+    high = float(fields[7]) if fields[7] else price
+    low = float(fields[8]) if fields[8] else price
+    # 真实昨收价在 fields[26]（权威，与东财 f60 一致）
+    prev_close = float(fields[26]) if fields[26] else price
+    if prev_close <= 0:
+        prev_close = price
     change = round(price - prev_close, 4)
+    change_pct = round(change / prev_close * 100, 4) if prev_close > 0 else 0
     if price <= 0:
         return None
     return {
@@ -576,16 +585,20 @@ def fetch_sina_with_timeout(sina_code, timeout=5):
     if '=""' in raw or '=' not in raw:
         return None, None
     fields = raw.split('"')[1].split(',')
-    if len(fields) < 8:
+    if len(fields) < 27:
         return None, None
     try:
         price = float(fields[1]) if fields[1] else 0
-        change_pct = float(fields[4]) if fields[4] else 0
-        open_price = float(fields[5]) if fields[5] else price
-        high = float(fields[6]) if fields[6] else price
-        low = float(fields[7]) if fields[7] else price
-        prev_close = price / (1 + change_pct / 100) if price > 0 else price
+        open_price = float(fields[6]) if fields[6] else price
+        high = float(fields[7]) if fields[7] else price
+        low = float(fields[8]) if fields[8] else price
+        # 真实昨收价在 fields[26]（权威，与东财 f60 一致），
+        # 不能用 dp 反推（dp 对高频分红 ETF 做了除权调整，会严重低估涨跌幅）
+        prev_close = float(fields[26]) if fields[26] else price
+        if prev_close <= 0:
+            prev_close = price
         change = round(price - prev_close, 4)
+        change_pct = round(change / prev_close * 100, 4) if prev_close > 0 else 0
         if price <= 0:
             return None, None
         return {
