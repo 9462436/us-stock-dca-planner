@@ -534,11 +534,13 @@ body {
   position: relative;
   white-space: nowrap;
   user-select: none;
+  background: transparent;
 }
 .top-tab:hover {
   color: var(--text);
   background: var(--card-hover);
   transform: translateY(-1px);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .top-tab.active {
   background: linear-gradient(135deg, var(--accent), var(--accent2));
@@ -551,6 +553,20 @@ body {
   font-weight: 700;
 }
 .top-tab-indicator { display: none; }
+.top-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width var(--transition-base);
+}
+.top-tab.active::after {
+  width: 80%;
+}
 
 /* Tab Content */
 .tab-content {
@@ -1008,6 +1024,26 @@ body {
   cursor: help;
   transition: all var(--transition-fast);
   border: 1px solid;
+  background: var(--card);
+  backdrop-filter: blur(8px) saturate(1.5);
+  -webkit-backdrop-filter: blur(8px) saturate(1.5);
+  position: relative;
+}
+.market-status-pill::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius-full) + 2px);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: -1;
+}
+.market-status-pill.live::before {
+  background: var(--success-bg);
+  opacity: 0.1;
+}
+.market-status-pill.hovered::before {
+  opacity: 0.15;
 }
 .market-status-pill .pulse {
   width: 7px;
@@ -1042,6 +1078,13 @@ body {
   border-color: var(--border-strong);
 }
 .market-status-pill.closed .pulse { background: var(--text-muted); animation: none; }
+.market-status-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.market-status-pill:active {
+  transform: translateY(1px);
+}
 @keyframes pulse-ring {
   0% { box-shadow: 0 0 0 0 currentColor; }
   70% { box-shadow: 0 0 0 8px transparent; }
@@ -1796,6 +1839,63 @@ input:checked + .toggle-slider:before {
 }
 .chart-card {
   background: linear-gradient(180deg, var(--card) 0%, var(--bg-elevated) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+.chart-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: 1;
+}
+.chart-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(79, 70, 229, 0.15), 0 8px 24px rgba(79, 70, 229, 0.08);
+  transform: translateY(-4px);
+}
+.chart-card:hover::before {
+  opacity: 1;
+}
+.chart-card .chart-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  margin: var(--space-3) var(--space-4);
+  letter-spacing: 0.02em;
+}
+.chart-card .chart-subtitle {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: 0 var(--space-4) var(--space-3);
+  letter-spacing: 0.03em;
+}
+/* Enhanced chart-card number display */
+.chart-card .number {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--text) 0%, var(--text-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: var(--space-2) var(--space-4);
+  display: inline-block;
+}
+.chart-card .change {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0 var(--space-4) var(--space-3);
+  letter-spacing: 0.02em;
+}
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 18px 20px 16px;
