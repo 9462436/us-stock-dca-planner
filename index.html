@@ -2325,19 +2325,31 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
   <!-- Summary Cards -->
   <div class="summary-grid" id="summaryGrid"></div>
 
+  <!-- Chart Controls -->
+  <div class="chart-controls" style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim);">
+      <span>图表模式:</span>
+      <button class="btn btn-secondary btn-sm" id="chartViewBtn" onclick="toggleChartView(true)" style="padding:6px 12px;">图表</button>
+      <button class="btn btn-secondary btn-sm" id="tableViewBtn" onclick="toggleChartView(false)" style="padding:6px 12px;">表格</button>
+    </div>
+    <button class="btn btn-cyan btn-sm" onclick="exportAllChartDataCSV()" style="margin-left:auto;">
+      <span class="rf-icon">↓</span> 导出所有图表数据 (CSV)
+    </button>
+  </div>
+
   <!-- Charts -->
-  <div class="charts-grid">
-    <div class="chart-card"><h3><span class="sec-tag tag-blue">PORTFOLIO</span> 投资组合总价值变化</h3><div class="chart-box loading" id="chartValue"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-green">DIVIDEND</span> 累计股息 vs 累计投入</h3><div class="chart-box loading" id="chartDividend"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-gold">CASHFLOW</span> 年度现金流（支出 vs 分红）</h3><div class="chart-box loading" id="chartCashflow"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-cyan">ALLOCATION</span> 各标的持仓价值占比</h3><div class="chart-box loading" id="chartAllocation"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-purple">RETURNS</span> 年化收益率趋势</h3><div class="chart-box loading" id="chartReturn"></div></div>
+  <div class="charts-grid" id="chartsContainer">
+    <div class="chart-card"><h3><span class="sec-tag tag-blue">PORTFOLIO</span> 投资组合总价值变化</h3><div class="chart-box loading" id="chartValue"></div><div class="chart-table hidden" id="tableValue"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-green">DIVIDEND</span> 累计股息 vs 累计投入</h3><div class="chart-box loading" id="chartDividend"></div><div class="chart-table hidden" id="tableDividend"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-gold">CASHFLOW</span> 年度现金流（支出 vs 分红）</h3><div class="chart-box loading" id="chartCashflow"></div><div class="chart-table hidden" id="tableCashflow"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-cyan">ALLOCATION</span> 各标的持仓价值占比</h3><div class="chart-box loading" id="chartAllocation"></div><div class="chart-table hidden" id="tableAllocation"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-purple">RETURNS</span> 年化收益率趋势</h3><div class="chart-box loading" id="chartReturn"></div><div class="chart-table hidden" id="tableReturn"></div></div>
   </div>
 
   <!-- 第二行图表：现金流热度 + 净值曲线 + 水下图 -->
-  <div class="charts-grid">
-    <div class="chart-card"><h3><span class="sec-tag tag-gold">HEATMAP</span> 月度分红覆盖率热力图</h3><div class="chart-box loading" id="chartHeatmap"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-blue">DRAWDOWN</span> 净值曲线 vs 水下回撤</h3><div class="chart-box loading" id="chartDrawdown"></div></div>
+  <div class="charts-grid" id="chartsContainer2">
+    <div class="chart-card"><h3><span class="sec-tag tag-gold">HEATMAP</span> 月度分红覆盖率热力图</h3><div class="chart-box loading" id="chartHeatmap"></div><div class="chart-table hidden" id="tableHeatmap"></div></div>
+    <div class="chart-card"><h3><span class="sec-tag tag-blue">DRAWDOWN</span> 净值曲线 vs 水下回撤</h3><div class="chart-box loading" id="chartDrawdown"></div><div class="chart-table hidden" id="tableDrawdown"></div></div>
     <div class="chart-card mc-card">
       <h3>
         <span class="sec-tag tag-cyan">MONTE CARLO</span> 价格预测引擎 · 蒙特卡洛模拟
@@ -2359,6 +2371,7 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
       </h3>
       <div class="mc-subtitle">通过随机模拟未来价格路径，评估投资组合在不同市场条件下的潜在表现和风险</div>
       <div class="chart-box loading" id="chartMonteCarlo"></div>
+      <div class="chart-table hidden" id="tableMonteCarlo"></div>
       <div class="mc-stats" id="mcStats"></div>
     </div>
   </div>
@@ -3641,12 +3654,12 @@ function getFilteredData() {
 }
 
 // ============ RENDER CHARTS ============
-function renderCharts() {
+async function renderCharts() {
   const data = getFilteredData();
   if (data.length === 0) return;
   const yearLabels = data.map(d => `Y${Math.ceil(d.month/12)}`);
 
-  renderOrUpdate('chartValue', {
+  await renderOrUpdate('chartValue', {
     tooltip: { trigger:'axis', valueFormatter: v => '¥' + Math.round(v).toLocaleString('zh-CN') },
     legend: { data:['组合市值','累计股息','累计投入'], textStyle:{color:'#6b7280'}, top:5 },
     grid: { left:70, right:20, top:40, bottom:30 },
@@ -3659,7 +3672,7 @@ function renderCharts() {
     ]
   });
 
-  renderOrUpdate('chartDividend', {
+  await renderOrUpdate('chartDividend', {
     tooltip: {
       trigger:'axis',
       formatter: params => {
@@ -3694,7 +3707,7 @@ function renderCharts() {
   const last = data[data.length - 1];
   const pieData = last.stocks.map(s => ({ name:s.ticker, value:Math.round(s.valueRMB) }));
   const pieColors = stockConfigs.map(s => s.color);
-  renderOrUpdate('chartAllocation', {
+  await renderOrUpdate('chartAllocation', {
     tooltip: { trigger:'item', valueFormatter: v => '¥' + v.toLocaleString('zh-CN') },
     legend: { orient:'vertical', right:10, top:'center', textStyle:{color:'#6b7280'} },
     series: [{
@@ -3712,7 +3725,7 @@ function renderCharts() {
     const d = data[idx];
     annualData.push({ year: y, roi: d.annualizedRoi, totalReturn: d.totalReturnRMB });
   }
-  renderOrUpdate('chartReturn', {
+  await renderOrUpdate('chartReturn', {
     tooltip: {
       trigger:'axis',
       formatter: params => {
@@ -3755,7 +3768,7 @@ function renderCharts() {
   }
   // 覆盖率 = 当年分红 / 当年支出 × 100
   const coveragePct = annualDividends.map(d => annualOutflow > 0 ? (d / annualOutflow * 100) : 0);
-  renderOrUpdate('chartCashflow', {
+  await renderOrUpdate('chartCashflow', {
     tooltip: {
       trigger:'axis',
       formatter: params => {
@@ -3812,7 +3825,7 @@ function renderCharts() {
       heatData.push([monthIdx, y - 1, Math.round(cov * 10) / 10]);
     }
   }
-  renderOrUpdate('chartHeatmap', {
+  await renderOrUpdate('chartHeatmap', {
     tooltip: {
       formatter: p => {
         const v = p.value[2];
@@ -3839,7 +3852,7 @@ function renderCharts() {
   const navData = window._navCurve || [];
   const ddData = window._drawdownCurve || [];
   if (navData.length > 0) {
-    renderOrUpdate('chartDrawdown', {
+    await renderOrUpdate('chartDrawdown', {
       tooltip: {
         trigger:'axis',
         formatter: params => {
@@ -3887,7 +3900,7 @@ function renderCharts() {
   }
 }
 
-function renderOrUpdate(id, option) {
+async function renderOrUpdate(id, option) {
   const card = document.getElementById(id)?.parentElement;
   if (card) card.classList.remove('loading');
   if (chartInstances[id]) {
@@ -3898,6 +3911,16 @@ function renderOrUpdate(id, option) {
   // 清理空状态占位符
   const oldEmpty = dom.parentElement?.querySelector('.chart-empty');
   if (oldEmpty) oldEmpty.remove();
+  
+  // 等待 ECharts 加载完成
+  try {
+    await waitForECharts();
+  } catch (e) {
+    console.error('ECharts not loaded:', e);
+    showChartEmpty(id, '图表库加载失败，请刷新重试');
+    return;
+  }
+  
   const chart = echarts.init(dom);
   chart.setOption(option);
   chartInstances[id] = chart;
@@ -3925,6 +3948,330 @@ function showChartEmpty(chartId, message = '暂无数据') {
   `;
   parent.style.position = 'relative';
   parent.appendChild(empty);
+}
+
+// ============ CHART TABLE VIEW (Text-based display) ============
+let showCharts = true; // true = 图表模式, false = 表格模式
+
+function toggleChartView(showChart) {
+  showCharts = showChart;
+  const chartBoxes = document.querySelectorAll('.chart-box');
+  const chartTables = document.querySelectorAll('.chart-table');
+  const chartBtn = document.getElementById('chartViewBtn');
+  const tableBtn = document.getElementById('tableViewBtn');
+  
+  chartBoxes.forEach(box => box.classList.toggle('hidden', !showChart));
+  chartTables.forEach(table => table.classList.toggle('hidden', showChart));
+  
+  if (chartBtn) chartBtn.classList.toggle('active', showChart);
+  if (tableBtn) tableBtn.classList.toggle('active', !showChart);
+  
+  if (!showChart) {
+    // 渲染所有表格
+    renderAllChartTables();
+  }
+}
+
+function renderAllChartTables() {
+  if (!projectionData || projectionData.length === 0) return;
+  
+  const data = getFilteredData();
+  const yearLabels = data.map(d => `Y${Math.ceil(d.month/12)}`);
+  
+  // 1. 投资组合总价值变化表
+  renderChartTable('tableValue', {
+    title: '投资组合总价值变化',
+    headers: ['年份', '累计投入(¥)', '组合市值(¥)', '累计股息(¥)', '总收益(¥)', '回报率(%)'],
+    rows: data.filter((_, i) => (i + 1) % 12 === 0 || i === data.length - 1).map(d => [
+      `第 ${Math.ceil(d.month/12)} 年`,
+      Math.round(d.investedRMB).toLocaleString('zh-CN'),
+      Math.round(d.portfolioValueRMB).toLocaleString('zh-CN'),
+      Math.round(d.cumulativeDividendsRMB).toLocaleString('zh-CN'),
+      Math.round(d.totalReturnRMB).toLocaleString('zh-CN'),
+      d.totalReturnPct.toFixed(1)
+    ])
+  });
+  
+  // 2. 累计股息 vs 累计投入表
+  renderChartTable('tableDividend', {
+    title: '累计股息 vs 累计投入',
+    headers: ['年份', '累计投入(¥)', '累计分红(税后)(¥)', '其中ROC(¥)', '真实经济收益(¥)', '分红覆盖率(%)'],
+    rows: data.filter((_, i) => (i + 1) % 12 === 0 || i === data.length - 1).map(d => [
+      `第 ${Math.ceil(d.month/12)} 年`,
+      Math.round(d.investedRMB).toLocaleString('zh-CN'),
+      Math.round(d.cumulativeDividendsRMB).toLocaleString('zh-CN'),
+      Math.round(d.cumulativeRocRMB || 0).toLocaleString('zh-CN'),
+      Math.round(d.cumulativeRealDividendsRMB || 0).toLocaleString('zh-CN'),
+      (d.investedRMB > 0 ? (d.cumulativeDividendsRMB / d.investedRMB * 100) : 0).toFixed(1)
+    ])
+  });
+  
+  // 3. 年度现金流表
+  const monthlyInvestRMB = parseFloat(document.getElementById('monthlyInvest')?.value) || 7000;
+  const annualOutflow = monthlyInvestRMB * 12;
+  renderChartTable('tableCashflow', {
+    title: '年度现金流（支出 vs 分红）',
+    headers: ['年份', '年定投支出(¥)', '年税后分红(¥)', '分红覆盖率(%)', '缺口/盈余(¥)'],
+    rows: Array.from({ length: currentYear }, (_, y) => {
+      const yNum = y + 1;
+      const curIdx = Math.min(data.length - 1, yNum * 12 - 1);
+      const prevIdx = Math.min(data.length - 1, (yNum - 1) * 12 - 1);
+      const curDiv = data[curIdx].cumulativeDividendsRMB;
+      const prevDiv = prevIdx >= 0 ? data[prevIdx].cumulativeDividendsRMB : 0;
+      const yearDiv = curDiv - prevDiv;
+      const coverage = annualOutflow > 0 ? (yearDiv / annualOutflow * 100) : 0;
+      const gap = yearDiv - annualOutflow;
+      return [
+        `第 ${yNum} 年`,
+        annualOutflow.toLocaleString('zh-CN'),
+        Math.round(yearDiv).toLocaleString('zh-CN'),
+        coverage.toFixed(1),
+        (gap >= 0 ? '+' : '') + Math.round(gap).toLocaleString('zh-CN')
+      ];
+    })
+  });
+  
+  // 4. 各标的持仓价值占比表
+  const last = data[data.length - 1];
+  const totalValue = last.portfolioValueRMB;
+  renderChartTable('tableAllocation', {
+    title: '各标的持仓价值占比 (当前)',
+    headers: ['标的', '持仓股数', '当前价($)', '市值(¥)', '占比(%)', '配置权重(%)'],
+    rows: last.stocks.map(s => {
+      const stock = stockConfigs.find(c => c.ticker === s.ticker);
+      return [
+        s.ticker,
+        s.shares.toFixed(2),
+        s.price.toFixed(2),
+        Math.round(s.valueRMB).toLocaleString('zh-CN'),
+        totalValue > 0 ? (s.valueRMB / totalValue * 100).toFixed(1) : '0',
+        stock ? (stock.allocation * 100).toFixed(0) : '0'
+      ];
+    })
+  });
+  
+  // 5. 年化收益率趋势表
+  const annualData = [];
+  for (let y = 1; y <= currentYear; y++) {
+    const idx = Math.min(data.length - 1, y * 12 - 1);
+    const d = data[idx];
+    annualData.push({ year: y, roi: d.annualizedRoi, totalReturn: d.totalReturnRMB });
+  }
+  renderChartTable('tableReturn', {
+    title: '年化收益率趋势',
+    headers: ['年份', '年化收益率(%)', '累计总收益(¥)'],
+    rows: annualData.map(d => [
+      `第 ${d.year} 年`,
+      d.roi.toFixed(2),
+      Math.round(d.totalReturn).toLocaleString('zh-CN')
+    ])
+  });
+  
+  // 6. 月度分红覆盖率热力图表
+  const heatMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const heatRows = [];
+  for (let y = 1; y <= currentYear; y++) {
+    const row = [`第 ${y} 年`];
+    for (let m = 0; m < 12; m++) {
+      const monthIdx = (y - 1) * 12 + m;
+      if (monthIdx < data.length) {
+        const monthDivUSD = data[monthIdx].cumulativeDividendsRMB - (monthIdx > 0 ? data[monthIdx-1].cumulativeDividendsRMB : 0);
+        const monthMonthlyInvest = monthlyInvestRMB;
+        const cov = monthMonthlyInvest > 0 ? (monthDivUSD / monthMonthlyInvest * 100) : 0;
+        row.push(cov.toFixed(1) + '%');
+      } else {
+        row.push('--');
+      }
+    }
+    heatRows.push(row);
+  }
+  renderChartTable('tableHeatmap', {
+    title: '月度分红覆盖率热力图',
+    headers: ['年份', ...heatMonths],
+    rows: heatRows
+  });
+  
+  // 7. 净值曲线 vs 水下回撤表
+  const navCurve = window._navCurve || [];
+  const ddCurve = window._drawdownCurve || [];
+  const navRows = navCurve.map((v, i) => {
+    const year = Math.ceil((i + 1) / 12);
+    const month = (i % 12) + 1;
+    return [
+      `Y${year}M${month.toString().padStart(2, '0')}`,
+      Math.round(v).toLocaleString('zh-CN'),
+      (ddCurve[i] || 0).toFixed(2) + '%'
+    ];
+  });
+  renderChartTable('tableDrawdown', {
+    title: '净值曲线 vs 水下回撤',
+    headers: ['月份', '净值(¥)', '回撤(%)'],
+    rows: navRows
+  });
+  
+  // 8. 蒙特卡洛表
+  if (monteCarloResult) {
+    const mc = monteCarloResult;
+    const mcRows = mc.finalValues.map((v, i) => [
+      i + 1,
+      Math.round(v).toLocaleString('zh-CN'),
+      totalInvested > 0 ? ((v - totalInvested) / totalInvested * 100).toFixed(1) + '%' : '0%'
+    ]).slice(0, 20); // 只显示前20
+    renderChartTable('tableMonteCarlo', {
+      title: '蒙特卡洛模拟结果 (前20路径)',
+      headers: ['路径', '终值(¥)', '收益率(%)'],
+      rows: mcRows
+    });
+  }
+}
+
+function renderChartTable(tableId, { title, headers, rows }) {
+  const tableEl = document.getElementById(tableId);
+  if (!tableEl) return;
+  
+  tableEl.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;padding:8px;background:var(--accent-light);border-radius:var(--radius-sm);border:1px solid var(--accent-light);">${title}</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:var(--font-mono);">
+        <thead>
+          <tr style="background:var(--bg-elevated);">
+            ${headers.map(h => `<th style="padding:8px 10px;text-align:right;border-bottom:2px solid var(--border);color:var(--text-secondary);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;">${h}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row, ri) => `
+            <tr style="${ri % 2 === 0 ? 'background:var(--bg)' : ''};">
+              ${row.map((cell, ci) => `
+                <td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:${ci === 0 ? 'left' : 'right'};color:${ci === 0 ? 'var(--text)' : 'var(--text-secondary)'};font-weight:${ci === 0 ? '600' : '500'};">
+                  ${cell}
+                </td>
+              `).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;padding:8px;background:var(--info-bg);border-radius:var(--radius-sm);border:1px solid var(--info-light);font-size:10px;color:var(--info);">
+      💡 提示：点击"图表"切回可视化视图 · 点击"导出所有图表数据 (CSV)"下载完整数据
+    </div>
+  `;
+}
+
+function exportAllChartDataCSV() {
+  if (!projectionData || projectionData.length === 0) {
+    showToast('warning', '无数据可导出', '请等待数据加载完成后再试');
+    return;
+  }
+  
+  const data = getFilteredData();
+  const monthlyInvestRMB = parseFloat(document.getElementById('monthlyInvest')?.value) || 7000;
+  const annualOutflow = monthlyInvestRMB * 12;
+  
+  // 创建多个 CSV 文件，打包成 ZIP 太复杂，直接下载多个 CSV
+  // 这里我们生成一个综合 CSV，包含所有关键指标
+  
+  let csvContent = '\uFEFF'; // UTF-8 BOM
+  csvContent += '美股定投助手 - 图表数据导出\n';
+  csvContent += `导出时间,${new Date().toLocaleString('zh-CN')}\n`;
+  csvContent += `预测年限,${currentYear}年\n`;
+  csvContent += `月定投,¥${monthlyInvestRMB}\n`;
+  csvContent += `汇率,$1=¥${fxRate.toFixed(4)}\n\n`;
+  
+  // Sheet 1: 年度汇总
+  csvContent += '=== 年度汇总 ===\n';
+  csvContent += '年份,月数,累计投入(¥),组合市值(¥),累计股息(¥),总收益(¥),回报率(%),年化收益(%),累计ROC(¥),真实收益(¥)\n';
+  data.filter((_, i) => (i + 1) % 12 === 0 || i === data.length - 1).forEach(d => {
+    csvContent += `${Math.ceil(d.month/12)},${d.month},${Math.round(d.investedRMB)},${Math.round(d.portfolioValueRMB)},${Math.round(d.cumulativeDividendsRMB)},${Math.round(d.totalReturnRMB)},${d.totalReturnPct.toFixed(1)},${d.annualizedRoi.toFixed(1)},${Math.round(d.cumulativeRocRMB || 0)},${Math.round(d.cumulativeRealDividendsRMB || 0)}\n`;
+  });
+  
+  csvContent += '\n=== 月度明细 ===\n';
+  csvContent += '月份,年份,累计投入(¥),组合市值(¥),累计股息(¥),总收益(¥),月度股息(¥),月度收益率(%)\n';
+  data.forEach((d, i) => {
+    const monthlyDiv = i > 0 ? d.cumulativeDividendsRMB - data[i-1].cumulativeDividendsRMB : 0;
+    const monthlyRet = i > 0 ? (d.totalValueRMB - monthlyInvestRMB - data[i-1].totalValueRMB) / data[i-1].totalValueRMB * 100 : 0;
+    csvContent += `${d.month},${d.year},${Math.round(d.investedRMB)},${Math.round(d.portfolioValueRMB)},${Math.round(d.cumulativeDividendsRMB)},${Math.round(d.totalReturnRMB)},${Math.round(monthlyDiv)},${monthlyRet.toFixed(2)}\n`;
+  });
+  
+  // Sheet 2: 年度现金流
+  csvContent += '\n=== 年度现金流 ===\n';
+  csvContent += '年份,年定投支出(¥),年税后分红(¥),分红覆盖率(%),缺口/盈余(¥)\n';
+  for (let y = 1; y <= currentYear; y++) {
+    const curIdx = Math.min(data.length - 1, y * 12 - 1);
+    const prevIdx = Math.min(data.length - 1, (y - 1) * 12 - 1);
+    const curDiv = data[curIdx].cumulativeDividendsRMB;
+    const prevDiv = prevIdx >= 0 ? data[prevIdx].cumulativeDividendsRMB : 0;
+    const yearDiv = curDiv - prevDiv;
+    const coverage = annualOutflow > 0 ? (yearDiv / annualOutflow * 100) : 0;
+    const gap = yearDiv - annualOutflow;
+    csvContent += `${y},${annualOutflow},${Math.round(yearDiv)},${coverage.toFixed(1)},${Math.round(gap)}\n`;
+  }
+  
+  // Sheet 3: 持仓明细
+  const last = data[data.length - 1];
+  csvContent += '\n=== 当前持仓明细 ===\n';
+  csvContent += '标的,持仓股数,当前价($),市值(¥),占比(%),配置权重(%),月度分红($),年化股息率(%)\n';
+  last.stocks.forEach(s => {
+    const stock = stockConfigs.find(c => c.ticker === s.ticker);
+    const allocation = stock ? (stock.allocation * 100).toFixed(0) : '0';
+    const monthlyDiv = stock ? (stock.divFreq === 'weekly' ? stock.divPerShare * 52/12 : stock.divFreq === 'monthly' ? stock.divPerShare : stock.divPerShare / 3) : 0;
+    const yieldPct = stock && s.price > 0 ? ((stock.divFreq === 'weekly' ? stock.divPerShare * 52 : stock.divFreq === 'monthly' ? stock.divPerShare * 12 : stock.divPerShare * 4) / s.price * 100).toFixed(1) : '0';
+    csvContent += `${s.ticker},${s.shares.toFixed(2)},${s.price.toFixed(2)},${Math.round(s.valueRMB)},${(last.portfolioValueRMB > 0 ? (s.valueRMB / last.portfolioValueRMB * 100) : 0).toFixed(1)},${allocation},${monthlyDiv.toFixed(2)},${yieldPct}\n`;
+  });
+  
+  // Sheet 4: 月度分红覆盖率热力图
+  const heatMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  csvContent += '\n=== 月度分红覆盖率热力图 ===\n';
+  csvContent += '年份,' + heatMonths.join(',') + '\n';
+  for (let y = 1; y <= currentYear; y++) {
+    const row = [`Y${y}`];
+    for (let m = 0; m < 12; m++) {
+      const monthIdx = (y - 1) * 12 + m;
+      if (monthIdx < data.length) {
+        const monthDivUSD = data[monthIdx].cumulativeDividendsRMB - (monthIdx > 0 ? data[monthIdx-1].cumulativeDividendsRMB : 0);
+        const monthMonthlyInvest = monthlyInvestRMB;
+        const cov = monthMonthlyInvest > 0 ? (monthDivUSD / monthMonthlyInvest * 100) : 0;
+        row.push(cov.toFixed(1));
+      } else {
+        row.push('--');
+      }
+    }
+    csvContent += row.join(',') + '\n';
+  }
+  
+  // Sheet 5: 净值与回撤
+  const navCurve = window._navCurve || [];
+  const ddCurve = window._drawdownCurve || [];
+  csvContent += '\n=== 净值曲线与回撤 ===\n';
+  csvContent += '月份,净值(¥),回撤(%)\n';
+  navCurve.forEach((v, i) => {
+    const year = Math.ceil((i + 1) / 12);
+    const month = (i % 12) + 1;
+    csvContent += `Y${year}M${month.toString().padStart(2, '0')},${Math.round(v)},${(ddCurve[i] || 0).toFixed(2)}\n`;
+  });
+  
+  // Sheet 6: 蒙特卡洛 (如果有)
+  if (monteCarloResult) {
+    const mc = monteCarloResult;
+    const totalInvestedMC = mc.totalInvested || 0;
+    csvContent += '\n=== 蒙特卡洛模拟结果 ===\n';
+    csvContent += '路径,终值(¥),收益率(%)\n';
+    mc.finalValues.forEach((v, i) => {
+      csvContent += `${i + 1},${Math.round(v)},${totalInvestedMC > 0 ? ((v - totalInvestedMC) / totalInvestedMC * 100).toFixed(1) : 0}\n`;
+    });
+  }
+  
+  // 下载
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const now = new Date();
+  const stamp = now.toISOString().slice(0,10).replace(/-/g, '');
+  a.href = url;
+  a.download = `美股定投图表数据_${stamp}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  showToast('success', 'CSV 已导出', '包含年度汇总、月度明细、现金流、持仓、热力图、净值回撤、蒙特卡洛等所有数据');
 }
 
 // ============ MONTE CARLO SIMULATION ============
@@ -4292,7 +4639,7 @@ function renderMonteCarloChart({ pData, samples, baseline, totalInvested }) {
     symbol: 'none',
   });
 
-  renderOrUpdate('chartMonteCarlo', {
+  await renderOrUpdate('chartMonteCarlo', {
     tooltip: {
       trigger: 'axis',
       valueFormatter: v => '¥' + Math.round(v).toLocaleString('zh-CN'),
@@ -5362,6 +5709,27 @@ function runCalculate() {
   } catch(e) {
     console.error('Calculate error:', e);
   }
+}
+
+// ============ ECharts Readiness Helper ============
+function waitForECharts(timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    if (typeof echarts !== 'undefined') {
+      resolve();
+      return;
+    }
+    let elapsed = 0;
+    const interval = setInterval(() => {
+      if (typeof echarts !== 'undefined') {
+        clearInterval(interval);
+        resolve();
+      } else if (elapsed >= timeout) {
+        clearInterval(interval);
+        reject(new Error('ECharts load timeout'));
+      }
+      elapsed += 50;
+    }, 50);
+  });
 }
 
 // ============ ECharts Theme Adapter ============
