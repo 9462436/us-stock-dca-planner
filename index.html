@@ -5679,27 +5679,40 @@ async function refreshAll(silent = true) {
     document.getElementById('statusText').textContent = '错误';
     if (!silent) showToast('error', '刷新出错', e.message || '未知错误');
     console.error('Refresh error:', e);
+  } finally {
+    // 确保无论渲染是否出错，都隐藏加载遮罩
+    try {
+      renderPriceCards();
+    } catch(e) { console.error('renderPriceCards error:', e); }
+    try {
+      renderPortfolioSnapshot();
+    } catch(e) { console.error('renderPortfolioSnapshot error:', e); }
+    try {
+      renderHoldings();
+    } catch(e) { console.error('renderHoldings error:', e); }
+    try {
+      renderRebalance();
+    } catch(e) { console.error('renderRebalance error:', e); }
+    try {
+      renderEntryTiming();
+    } catch(e) { console.error('renderEntryTiming error:', e); }
+    try {
+      runCalculate();
+    } catch(e) { console.error('runCalculate error:', e); }
+
+    // 大盘数据静默拉取（独立于股价刷新，3 分钟缓存）
+    if (!silent || !marketData) {
+      fetchMarketData().then(() => {
+        try { if (marketData) renderMarketPanel(); } catch(e) { console.error('renderMarketPanel error:', e); }
+      });
+    } else if (marketData) {
+      try { renderMarketPanel(); } catch(e) { console.error('renderMarketPanel error:', e); }
+    }
+
+    const loading = document.getElementById('loading');
+    if (loading) loading.classList.add('hidden');
+    if (!silent && btn) btn.disabled = false;
   }
-
-  renderPriceCards();
-  renderPortfolioSnapshot();
-  renderHoldings();
-    renderRebalance();
-  renderEntryTiming();
-  runCalculate();
-
-  // 大盘数据静默拉取（独立于股价刷新，3 分钟缓存）
-  if (!silent || !marketData) {
-    fetchMarketData().then(() => {
-      if (marketData) renderMarketPanel();
-    });
-  } else if (marketData) {
-    renderMarketPanel();
-  }
-
-  const loading = document.getElementById('loading');
-  if (loading) loading.classList.add('hidden');
-  if (!silent && btn) btn.disabled = false;
 }
 
 function runCalculate() {
@@ -6035,12 +6048,12 @@ window.addEventListener('themeChanged', applyChartTheme);
   // 再尝试加载本地缓存（此时 localStorage 已是正确股数）
   const hasCache = loadCache();
   if (hasCache) {
-    renderPriceCards();
-    renderPortfolioSnapshot();
-    renderHoldings();
-    renderRebalance();
-    renderEntryTiming();
-    runCalculate();
+    try { renderPriceCards(); } catch(e) { console.error('renderPriceCards error:', e); }
+    try { renderPortfolioSnapshot(); } catch(e) { console.error('renderPortfolioSnapshot error:', e); }
+    try { renderHoldings(); } catch(e) { console.error('renderHoldings error:', e); }
+    try { renderRebalance(); } catch(e) { console.error('renderRebalance error:', e); }
+    try { renderEntryTiming(); } catch(e) { console.error('renderEntryTiming error:', e); }
+    try { runCalculate(); } catch(e) { console.error('runCalculate error:', e); }
     // 加载市场缓存
     const mCache = localStorage.getItem(MARKET_CACHE_KEY);
     if (mCache) {
@@ -6051,6 +6064,10 @@ window.addEventListener('themeChanged', applyChartTheme);
     }
     showToast('info', '已加载本地缓存', '上次刷新时间 ' + new Date(JSON.parse(localStorage.getItem(CACHE_KEY)).ts).toLocaleTimeString('zh-CN'), 3000);
   }
+
+  // 确保无论缓存渲染是否出错，都隐藏加载遮罩
+  const loading = document.getElementById('loading');
+  if (loading) loading.classList.add('hidden');
 
   // 首次加载给完整反馈，之后每 30 秒静默刷新（用户感觉不到）
   await refreshAll(!hasCache);
