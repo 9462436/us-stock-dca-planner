@@ -383,13 +383,19 @@ body {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@keyframes fadeInLeft {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+@keyframes fadeInCard {
+  from { opacity: 0; transform: translateY(30px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+@keyframes cardHoverLift {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+@keyframes cardShadowGrow {
+  0% { box-shadow: var(--shadow-sm); }
+  50% { box-shadow: var(--shadow-md), 0 0 0 4px var(--accent-light); }
+  100% { box-shadow: var(--shadow-sm); }
 }
 .anim-in { animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .anim-in:nth-child(2) { animation-delay: 0.06s; }
@@ -398,6 +404,8 @@ body {
 .anim-in:nth-child(5) { animation-delay: 0.24s; }
 .anim-in:nth-child(6) { animation-delay: 0.30s; }
 .anim-scale { animation: scaleIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.chart-card { animation: fadeInCard 0.5s cubic-bezier(0.22, 1, 0.36, 1) both both; }
+.chart-card:hover { animation: cardHoverLift 0.2s ease, cardShadowGrow 0.3s ease; }
 
 /* Section Tag - Replaces emoji */
 .sec-tag {
@@ -1103,7 +1111,14 @@ body {
   border-top: 1px solid var(--border);
   margin-top: var(--space-8);
   letter-spacing: 0.02em;
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-elevated) 100%);
+  backdrop-filter: blur(10px) saturate(1.5);
+  -webkit-backdrop-filter: blur(10px) saturate(1.5);
 }
+.footer:hover {
+  border-color: var(--border-focus);
+}
+.footer span { cursor: default; }
 
 /* Loading overlay - Enhanced */
 .loading-overlay {
