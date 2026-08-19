@@ -1659,19 +1659,33 @@ input:checked + .toggle-slider:before {
 .chart-empty {
   position:absolute; top:0; left:0; width:100%; height:100%;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:8px; color:var(--text-dim); font-size:12px;
-  background: var(--card);
-  border-radius: var(--radius-lg);
+  gap:10px; color:var(--text-muted); font-size:13px;
+  background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--card) 100%);
+  border-radius: var(--radius);
+  border: 1px dashed var(--border-strong);
   pointer-events:none;
   z-index:5;
+  text-align:center;
+  padding: 16px;
 }
 .chart-empty-icon {
-  font-size:32px; opacity:0.4;
+  font-size:36px;
+  opacity:0.6;
   animation: emptyBreathe 2s infinite ease-in-out;
+  width: 60px; height: 60px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.chart-empty-text {
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 @keyframes emptyBreathe {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.05); }
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.06); }
 }
 
 /* Pulse loader for cards */
@@ -1688,6 +1702,74 @@ input:checked + .toggle-slider:before {
 }
 
 /* Charts */
+.chart-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, var(--card) 0%, var(--bg-elevated) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.chart-controls .left-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.chart-controls .left-cluster > span {
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+.chart-controls .toggle-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+  padding: 2px;
+  gap: 2px;
+}
+.chart-controls .toggle-group button {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  padding: 6px 14px !important;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: var(--radius-sm) !important;
+  transition: all var(--transition-base);
+  box-shadow: none !important;
+  transform: none !important;
+}
+.chart-controls .toggle-group button:hover {
+  color: var(--text) !important;
+  background: var(--card-hover) !important;
+}
+.chart-controls .toggle-group button.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover)) !important;
+  color: #fff !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+.chart-controls .export-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
 .charts-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1698,34 +1780,72 @@ input:checked + .toggle-slider:before {
   .charts-grid { grid-template-columns: 1fr; }
 }
 .chart-card {
-  background: var(--card);
+  background: linear-gradient(180deg, var(--card) 0%, var(--bg-elevated) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px 18px;
+  padding: 18px 20px 16px;
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
   transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
 }
+/* 顶部彩条（用 after，不和 ::before 玻璃效果冲突）*/
+.chart-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  opacity: 0.85;
+  transition: opacity var(--transition-base), height var(--transition-base);
+  z-index: 1;
+  pointer-events: none;
+}
+.chart-card.chc-blue::after { background: linear-gradient(90deg, #4f46e5, #3b82f6); }
+.chart-card.chc-green::after { background: linear-gradient(90deg, #059669, #10b981); }
+.chart-card.chc-gold::after { background: linear-gradient(90deg, #d97706, #f59e0b); }
+.chart-card.chc-purple::after { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+.chart-card.chc-cyan::after { background: linear-gradient(90deg, #0891b2, #06b6d4); }
+.chart-card.chc-pink::after { background: linear-gradient(90deg, #db2777, #ec4899); }
+.chart-card.chc-red::after { background: linear-gradient(90deg, #dc2626, #ef4444); }
 .chart-card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md), 0 0 0 4px var(--accent-light);
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-lg), 0 0 0 4px var(--accent-light);
+  transform: translateY(-2px);
+}
+.chart-card:hover::after {
+  opacity: 1;
+  height: 4px;
 }
 .chart-card h3 {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text);
   font-weight: 700;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   letter-spacing: -0.01em;
   position: relative;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.3;
+}
+.chart-card h3 .sec-tag {
+  flex-shrink: 0;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  font-weight: 800;
+  box-shadow: var(--shadow-xs);
 }
 .chart-box {
   width: 100%;
-  height: 240px;
+  height: 260px;
   position: relative;
   z-index: 2;
   overflow: hidden;
+  border-radius: var(--radius-sm);
 }
 .chart-box.loading::after {
   content: '';
@@ -1734,15 +1854,118 @@ input:checked + .toggle-slider:before {
   z-index: 1;
   background: linear-gradient(90deg,
     transparent 0%,
-    rgba(255,255,255,0.35) 50%,
+    rgba(99, 102, 241, 0.06) 50%,
     transparent 100%);
   background-size: 200% 100%;
   animation: chartShimmer 1.8s infinite;
   pointer-events: none;
+  border-radius: var(--radius-sm);
+}
+.chart-box.loading {
+  min-height: 200px;
 }
 @keyframes chartShimmer {
   0% { background-position: 0% 0; }
   100% { background-position: 200% 0; }
+}
+
+/* Monte Carlo Card */
+.mc-card .mc-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+.mc-card .mc-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.mc-card .mc-controls input[type="range"] {
+  width: 80px;
+  accent-color: var(--accent2);
+}
+.mc-card .mc-controls select {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: var(--radius-xs);
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+}
+.mc-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+}
+.mc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.mc-stat {
+  background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+.mc-stat:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent2);
+  box-shadow: var(--shadow-md);
+}
+.mc-stat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent2), var(--pink));
+  opacity: 0.6;
+}
+.mc-stat-lbl {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.mc-stat-val {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-family: var(--font-mono);
+  line-height: 1.1;
+}
+.mc-stat-note {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  font-weight: 500;
 }
 
 /* Chart Loading Placeholder */
@@ -2646,31 +2869,33 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
   <div class="summary-grid" id="summaryGrid"></div>
 
   <!-- Chart Controls -->
-  <div class="chart-controls" style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
-    <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim);">
-      <span>图表模式:</span>
-      <button class="btn btn-secondary btn-sm" id="chartViewBtn" onclick="toggleChartView(true)" style="padding:6px 12px;">图表</button>
-      <button class="btn btn-secondary btn-sm" id="tableViewBtn" onclick="toggleChartView(false)" style="padding:6px 12px;">表格</button>
+  <div class="chart-controls">
+    <div class="left-cluster">
+      <span>视图模式</span>
+      <div class="toggle-group">
+        <button class="active" id="chartViewBtn" onclick="toggleChartView(true)">图表</button>
+        <button id="tableViewBtn" onclick="toggleChartView(false)">表格</button>
+      </div>
     </div>
-    <button class="btn btn-cyan btn-sm" onclick="exportAllChartDataCSV()" style="margin-left:auto;">
+    <button class="btn btn-cyan btn-sm export-btn" onclick="exportAllChartDataCSV()">
       <span class="rf-icon">↓</span> 导出所有图表数据 (CSV)
     </button>
   </div>
 
   <!-- Charts -->
   <div class="charts-grid" id="chartsContainer">
-    <div class="chart-card"><h3><span class="sec-tag tag-blue">PORTFOLIO</span> 投资组合总价值变化</h3><div class="chart-box loading" id="chartValue"></div><div class="chart-table hidden" id="tableValue"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-green">DIVIDEND</span> 累计股息 vs 累计投入</h3><div class="chart-box loading" id="chartDividend"></div><div class="chart-table hidden" id="tableDividend"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-gold">CASHFLOW</span> 年度现金流（支出 vs 分红）</h3><div class="chart-box loading" id="chartCashflow"></div><div class="chart-table hidden" id="tableCashflow"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-cyan">ALLOCATION</span> 各标的持仓价值占比</h3><div class="chart-box loading" id="chartAllocation"></div><div class="chart-table hidden" id="tableAllocation"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-purple">RETURNS</span> 年化收益率趋势</h3><div class="chart-box loading" id="chartReturn"></div><div class="chart-table hidden" id="tableReturn"></div></div>
+    <div class="chart-card chc-blue"><h3><span class="sec-tag tag-blue">PORTFOLIO</span> 投资组合总价值变化</h3><div class="chart-box loading" id="chartValue"></div><div class="chart-table hidden" id="tableValue"></div></div>
+    <div class="chart-card chc-green"><h3><span class="sec-tag tag-green">DIVIDEND</span> 累计股息 vs 累计投入</h3><div class="chart-box loading" id="chartDividend"></div><div class="chart-table hidden" id="tableDividend"></div></div>
+    <div class="chart-card chc-gold"><h3><span class="sec-tag tag-gold">CASHFLOW</span> 年度现金流（支出 vs 分红）</h3><div class="chart-box loading" id="chartCashflow"></div><div class="chart-table hidden" id="tableCashflow"></div></div>
+    <div class="chart-card chc-cyan"><h3><span class="sec-tag tag-cyan">ALLOCATION</span> 各标的持仓价值占比</h3><div class="chart-box loading" id="chartAllocation"></div><div class="chart-table hidden" id="tableAllocation"></div></div>
+    <div class="chart-card chc-purple"><h3><span class="sec-tag tag-purple">RETURNS</span> 年化收益率趋势</h3><div class="chart-box loading" id="chartReturn"></div><div class="chart-table hidden" id="tableReturn"></div></div>
   </div>
 
   <!-- 第二行图表：现金流热度 + 净值曲线 + 水下图 -->
   <div class="charts-grid" id="chartsContainer2">
-    <div class="chart-card"><h3><span class="sec-tag tag-gold">HEATMAP</span> 月度分红覆盖率热力图</h3><div class="chart-box loading" id="chartHeatmap"></div><div class="chart-table hidden" id="tableHeatmap"></div></div>
-    <div class="chart-card"><h3><span class="sec-tag tag-blue">DRAWDOWN</span> 净值曲线 vs 水下回撤</h3><div class="chart-box loading" id="chartDrawdown"></div><div class="chart-table hidden" id="tableDrawdown"></div></div>
-    <div class="chart-card mc-card">
+    <div class="chart-card chc-gold"><h3><span class="sec-tag tag-gold">HEATMAP</span> 月度分红覆盖率热力图</h3><div class="chart-box loading" id="chartHeatmap"></div><div class="chart-table hidden" id="tableHeatmap"></div></div>
+    <div class="chart-card chc-blue"><h3><span class="sec-tag tag-blue">DRAWDOWN</span> 净值曲线 vs 水下回撤</h3><div class="chart-box loading" id="chartDrawdown"></div><div class="chart-table hidden" id="tableDrawdown"></div></div>
+    <div class="chart-card mc-card chc-pink">
       <h3>
         <span class="sec-tag tag-cyan">MONTE CARLO</span> 价格预测引擎 · 蒙特卡洛模拟
         <span class="mc-controls">
@@ -3976,25 +4201,32 @@ function getFilteredData() {
 // ============ RENDER CHARTS ============
 async function renderCharts() {
   const data = getFilteredData();
-  if (data.length === 0) return;
-  const yearLabels = data.map(d => `Y${Math.ceil(d.month/12)}`);
+  const dataAvailable = data.length > 0;
+  const yearLabels = dataAvailable ? data.map(d => `Y${Math.ceil(d.month/12)}`) : Array.from({length: currentYear}, (_, i) => `Y${i+1}`);
+  // 即便数据为空，仍构建图表骨架（占位图），让图表卡片永远有可视内容
+  const safeData = dataAvailable ? data : [];
 
   await renderOrUpdate('chartValue', {
-    tooltip: { trigger:'axis', valueFormatter: v => '¥' + Math.round(v).toLocaleString('zh-CN') },
-    legend: { data:['组合市值','累计股息','累计投入'], textStyle:{color:'#6b7280'}, top:5 },
-    grid: { left:70, right:20, top:40, bottom:30 },
-    xAxis: { type:'category', data:yearLabels, name:'年份', nameTextStyle:{color:'#6b7280'}, axisLabel:{color:'#9ca3af'} },
-    yAxis: { type:'value', axisLabel:{color:'#9ca3af',formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#e5e7eb'}} },
+    tooltip: { trigger:'axis', valueFormatter: v => '¥' + Math.round(v).toLocaleString('zh-CN'), backgroundColor: 'rgba(255,255,255,0.95)', borderColor: '#e2e8f0', textStyle: { color: '#0f172a' } },
+    legend: { data:['组合市值','累计股息','累计投入'], textStyle:{color:'#475569',fontWeight:600}, top:8, icon: 'roundRect', itemWidth: 12, itemHeight: 8 },
+    grid: { left:70, right:24, top:48, bottom:36 },
+    xAxis: { type:'category', data:yearLabels, name:'年份', nameTextStyle:{color:'#94a3b8'}, axisLabel:{color:'#94a3b8',fontSize:11}, axisLine:{lineStyle:{color:'#cbd5e1'}}, axisTick:{show:false} },
+    yAxis: { type:'value', axisLabel:{color:'#94a3b8',fontSize:11,formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#f1f5f9',type:'dashed'}}, axisLine:{show:false}, axisTick:{show:false} },
+    animationDuration: 800,
+    animationEasing: 'cubicOut',
     series: [
-      { name:'组合市值', type:'line', data:data.map(d=>d.portfolioValueRMB), smooth:true, lineStyle:{color:'#3b82f6',width:2}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(59,130,246,0.3)'},{offset:1,color:'rgba(59,130,246,0.02)'}]}}, symbol:'none' },
-      { name:'累计股息', type:'line', data:data.map(d=>d.cumulativeDividendsRMB), smooth:true, lineStyle:{color:'#22c55e',width:2,type:'dashed'}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(34,197,94,0.2)'},{offset:1,color:'rgba(34,197,94,0.02)'}]}}, symbol:'none' },
-      { name:'累计投入', type:'line', data:data.map(d=>d.investedRMB), smooth:true, lineStyle:{color:'#f59e0b',width:2,type:'dotted'}, symbol:'none' }
+      { name:'组合市值', type:'line', data:safeData.map(d=>d.portfolioValueRMB), smooth:true, lineStyle:{color:'#4f46e5',width:2.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(79,70,229,0.28)'},{offset:1,color:'rgba(79,70,229,0.02)'}]}}, symbol:'none' },
+      { name:'累计股息', type:'line', data:safeData.map(d=>d.cumulativeDividendsRMB), smooth:true, lineStyle:{color:'#059669',width:2,type:'dashed'}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(5,150,105,0.18)'},{offset:1,color:'rgba(5,150,105,0.02)'}]}}, symbol:'none' },
+      { name:'累计投入', type:'line', data:safeData.map(d=>d.investedRMB), smooth:true, lineStyle:{color:'#d97706',width:2,type:'dotted'}, symbol:'none' }
     ]
   });
 
   await renderOrUpdate('chartDividend', {
     tooltip: {
       trigger:'axis',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#e2e8f0',
+      textStyle: { color: '#0f172a' },
       formatter: params => {
         let html = params[0].axisValueLabel + '<br/>';
         params.forEach(p => {
@@ -4007,34 +4239,49 @@ async function renderCharts() {
         return html;
       }
     },
-    legend: { data:['累计投入','累计分红(税后)','其中ROC','真实经济收益','分红覆盖率'], textStyle:{color:'#6b7280'}, top:5 },
-    grid: { left:70, right:60, top:40, bottom:30 },
-    xAxis: { type:'category', data:yearLabels, axisLabel:{color:'#9ca3af'} },
+    legend: { data:['累计投入','累计分红(税后)','其中ROC','真实经济收益','分红覆盖率'], textStyle:{color:'#475569',fontWeight:600}, top:8, icon: 'roundRect', itemWidth: 12, itemHeight: 8 },
+    grid: { left:70, right:60, top:48, bottom:36 },
+    xAxis: { type:'category', data:yearLabels, axisLabel:{color:'#94a3b8',fontSize:11}, axisLine:{lineStyle:{color:'#cbd5e1'}}, axisTick:{show:false} },
     yAxis: [
-      { type:'value', name:'金额', nameTextStyle:{color:'#9ca3af',fontSize:11}, axisLabel:{color:'#9ca3af',formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#e5e7eb'}} },
-      { type:'value', axisLabel:{color:'#64748b',formatter:v=>v.toFixed(0)+'%'}, splitLine:{show:false} }
+      { type:'value', name:'金额', nameTextStyle:{color:'#94a3b8',fontSize:11}, axisLabel:{color:'#94a3b8',fontSize:11,formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#f1f5f9',type:'dashed'}}, axisLine:{show:false}, axisTick:{show:false} },
+      { type:'value', axisLabel:{color:'#94a3b8',fontSize:11,formatter:v=>v.toFixed(0)+'%'}, splitLine:{show:false}, axisLine:{show:false} }
     ],
+    animationDuration: 800,
     series: [
-      { name:'累计投入', type:'bar', data:data.map(d=>d.investedRMB), barWidth:'55%', itemStyle:{color:'rgba(245,158,11,0.3)',borderColor:'#f59e0b',borderRadius:[4,4,0,0]} },
-      { name:'累计分红(税后)', type:'bar', data:data.map(d=>d.cumulativeDividendsRMB), barWidth:'55%', itemStyle:{color:'rgba(34,197,94,0.25)',borderColor:'#22c55e',borderRadius:[4,4,0,0]} },
-      { name:'其中ROC', type:'bar', data:data.map(d=>d.cumulativeRocRMB||0), barWidth:'55%', itemStyle:{color:'rgba(239,68,68,0.25)',borderColor:'#ef4444',borderRadius:[4,4,0,0]} },
-      { name:'真实经济收益', type:'line', data:data.map(d=>d.cumulativeRealDividendsRMB||0), smooth:true, lineStyle:{color:'#22c5f6',width:2.5}, symbol:'circle',symbolSize:5,
-        emphasis:{itemStyle:{color:'#3b82f6'}} },
-      { name:'分红覆盖率', type:'line', yAxisIndex:1, data:data.map(d=>d.investedRMB>0?(d.cumulativeDividendsRMB/d.investedRMB*100):0), smooth:true, lineStyle:{color:'#ec4899',width:2}, symbol:'none' }
+      { name:'累计投入', type:'bar', data:safeData.map(d=>d.investedRMB), barWidth:'40%', itemStyle:{color:'rgba(217,119,6,0.32)',borderColor:'#d97706',borderWidth:1,borderRadius:[4,4,0,0]} },
+      { name:'累计分红(税后)', type:'bar', data:safeData.map(d=>d.cumulativeDividendsRMB), barWidth:'40%', itemStyle:{color:'rgba(5,150,105,0.28)',borderColor:'#059669',borderWidth:1,borderRadius:[4,4,0,0]} },
+      { name:'其中ROC', type:'bar', data:safeData.map(d=>d.cumulativeRocRMB||0), barWidth:'40%', itemStyle:{color:'rgba(220,38,38,0.28)',borderColor:'#dc2626',borderWidth:1,borderRadius:[4,4,0,0]} },
+      { name:'真实经济收益', type:'line', data:safeData.map(d=>d.cumulativeRealDividendsRMB||0), smooth:true, lineStyle:{color:'#0891b2',width:2.5}, symbol:'circle',symbolSize:6,itemStyle:{color:'#0891b2'},
+        emphasis:{itemStyle:{color:'#0e7490'}} },
+      { name:'分红覆盖率', type:'line', yAxisIndex:1, data:safeData.map(d=>d.investedRMB>0?(d.cumulativeDividendsRMB/d.investedRMB*100):0), smooth:true, lineStyle:{color:'#db2777',width:2}, symbol:'none' }
     ]
   });
 
-  const last = data[data.length - 1];
-  const pieData = last.stocks.map(s => ({ name:s.ticker, value:Math.round(s.valueRMB) }));
+  const last = dataAvailable ? data[data.length - 1] : null;
+  const pieData = dataAvailable && last
+    ? last.stocks.map(s => ({ name:s.ticker, value:Math.round(s.valueRMB) }))
+    : stockConfigs.map(s => ({ name:s.ticker, value: 100 / stockConfigs.length }));
   const pieColors = stockConfigs.map(s => s.color);
   await renderOrUpdate('chartAllocation', {
-    tooltip: { trigger:'item', valueFormatter: v => '¥' + v.toLocaleString('zh-CN') },
-    legend: { orient:'vertical', right:10, top:'center', textStyle:{color:'#6b7280'} },
+    tooltip: {
+      trigger:'item',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#e2e8f0',
+      textStyle: { color: '#0f172a' },
+      valueFormatter: v => '¥' + Math.round(v).toLocaleString('zh-CN')
+    },
+    legend: { orient:'vertical', right:18, top:'middle', textStyle:{color:'#475569',fontWeight:600,fontSize:11}, icon:'roundRect', itemWidth:10, itemHeight:8, itemGap:8 },
+    graphic: dataAvailable ? [] : [{
+      type:'text', left:'40%', top:'46%', style:{text:'等待计算', fill:'#94a3b8', fontSize:12, fontWeight:600}
+    }],
     series: [{
-      type:'pie', radius:['45%','75%'], center:['40%','50%'],
-      data: pieData, label:{color:'#94a3b8'},
+      type:'pie', radius:['48%','72%'], center:['38%','52%'],
+      data: pieData,
+      label:{color:'#475569',fontWeight:600,fontSize:11,formatter:'{b}\n{d}%'},
+      labelLine:{lineStyle:{color:'#cbd5e1'},length:8,length2:6},
       color: pieColors,
-      emphasis: { itemStyle:{shadowBlur:10,shadowColor:'rgba(0,0,0,0.5)'} }
+      emphasis: { itemStyle:{shadowBlur:18,shadowColor:'rgba(15,23,42,0.25)',borderColor:'#fff',borderWidth:2}, scale:true, scaleSize: 6 },
+      itemStyle: { borderColor:'#fff', borderWidth:2, borderRadius:4 }
     }]
   });
 
@@ -4048,6 +4295,9 @@ async function renderCharts() {
   await renderOrUpdate('chartReturn', {
     tooltip: {
       trigger:'axis',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#e2e8f0',
+      textStyle: { color: '#0f172a' },
       formatter: params => {
         let html = params[0].axisValueLabel + '<br/>';
         params.forEach(p => {
@@ -4059,16 +4309,16 @@ async function renderCharts() {
         return html;
       }
     },
-    legend: { data:['年化收益率','累计总收益(¥)'], textStyle:{color:'#6b7280'}, top:5 },
-    grid: { left:70, right:80, top:40, bottom:30 },
-    xAxis: { type:'category', data:annualData.map(d=>'Y'+d.year), axisLabel:{color:'#9ca3af'} },
+    legend: { data:['年化收益率','累计总收益(¥)'], textStyle:{color:'#475569',fontWeight:600}, top:8, icon:'roundRect', itemWidth:12, itemHeight:8 },
+    grid: { left:70, right:80, top:48, bottom:36 },
+    xAxis: { type:'category', data:annualData.map(d=>'Y'+d.year), axisLabel:{color:'#94a3b8',fontSize:11}, axisLine:{lineStyle:{color:'#cbd5e1'}}, axisTick:{show:false} },
     yAxis: [
-      { type:'value', name:'收益率', nameTextStyle:{color:'#9ca3af',fontSize:11}, axisLabel:{color:'#9ca3af',formatter:v=>v.toFixed(0)+'%'}, splitLine:{lineStyle:{color:'#e5e7eb'}} },
-      { type:'value', name:'收益额', nameTextStyle:{color:'#9ca3af',fontSize:11}, axisLabel:{color:'#9ca3af',formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{show:false} }
+      { type:'value', name:'收益率', nameTextStyle:{color:'#94a3b8',fontSize:11}, axisLabel:{color:'#94a3b8',fontSize:11,formatter:v=>v.toFixed(0)+'%'}, splitLine:{lineStyle:{color:'#f1f5f9',type:'dashed'}}, axisLine:{show:false}, axisTick:{show:false} },
+      { type:'value', name:'收益额', nameTextStyle:{color:'#94a3b8',fontSize:11}, axisLabel:{color:'#94a3b8',fontSize:11,formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{show:false}, axisLine:{show:false} }
     ],
     series: [
-      { name:'年化收益率', type:'line', data:annualData.map(d=>d.roi), smooth:true, lineStyle:{color:'#7c3aed',width:2.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(124,58,237,0.15)'},{offset:1,color:'rgba(124,58,237,0.02)'}]}}, symbol:'circle',symbolSize:6 },
-      { name:'累计总收益(¥)', type:'bar', yAxisIndex:1, data:annualData.map(d=>d.totalReturn), barWidth:'50%', itemStyle:{color:'rgba(8,145,178,0.35)',borderColor:'#0891b2',borderRadius:[4,4,0,0]} }
+      { name:'年化收益率', type:'line', data:annualData.map(d=>d.roi), smooth:true, lineStyle:{color:'#7c3aed',width:2.5}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(124,58,237,0.18)'},{offset:1,color:'rgba(124,58,237,0.02)'}]}}, symbol:'circle',symbolSize:6, itemStyle:{color:'#7c3aed'} },
+      { name:'累计总收益(¥)', type:'bar', yAxisIndex:1, data:annualData.map(d=>d.totalReturn), barWidth:'45%', itemStyle:{color:'rgba(8,145,178,0.4)',borderColor:'#0891b2',borderWidth:1,borderRadius:[4,4,0,0]} }
     ]
   });
 
@@ -4091,6 +4341,9 @@ async function renderCharts() {
   await renderOrUpdate('chartCashflow', {
     tooltip: {
       trigger:'axis',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#e2e8f0',
+      textStyle: { color: '#0f172a' },
       formatter: params => {
         let html = params[0].axisValueLabel + '<br/>';
         params.forEach(p => {
@@ -4103,27 +4356,27 @@ async function renderCharts() {
         return html;
       }
     },
-    legend: { data:['年税后分红','分红覆盖率'], textStyle:{color:'#6b7280'}, top:5 },
-    grid: { left:70, right:60, top:40, bottom:30 },
-    xAxis: { type:'category', data:annualLabels, name:'年份', nameTextStyle:{color:'#6b7280'}, axisLabel:{color:'#9ca3af'} },
+    legend: { data:['年税后分红','分红覆盖率'], textStyle:{color:'#475569',fontWeight:600}, top:8, icon:'roundRect', itemWidth:12, itemHeight:8 },
+    grid: { left:70, right:60, top:48, bottom:36 },
+    xAxis: { type:'category', data:annualLabels, name:'年份', nameTextStyle:{color:'#94a3b8'}, axisLabel:{color:'#94a3b8',fontSize:11}, axisLine:{lineStyle:{color:'#cbd5e1'}}, axisTick:{show:false} },
     yAxis: [
-      { type:'value', name:'金额', nameTextStyle:{color:'#9ca3af',fontSize:11}, axisLabel:{color:'#9ca3af',formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#e5e7eb'}} },
-      { type:'value', name:'覆盖率', nameTextStyle:{color:'#9ca3af',fontSize:11}, axisLabel:{color:'#9ca3af',formatter:v=>v.toFixed(0)+'%'}, splitLine:{show:false}, max: 100 }
+      { type:'value', name:'金额', nameTextStyle:{color:'#94a3b8',fontSize:11}, axisLabel:{color:'#94a3b8',fontSize:11,formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#f1f5f9',type:'dashed'}}, axisLine:{show:false}, axisTick:{show:false} },
+      { type:'value', name:'覆盖率', nameTextStyle:{color:'#94a3b8',fontSize:11}, axisLabel:{color:'#94a3b8',fontSize:11,formatter:v=>v.toFixed(0)+'%'}, splitLine:{show:false}, max: 100, axisLine:{show:false} }
     ],
     series: [
-      { name:'年税后分红', type:'bar', data:annualDividends, barWidth:'55%',
-        itemStyle:{color:'rgba(22,163,74,0.55)',borderColor:'#16a34a',borderRadius:[4,4,0,0]},
+      { name:'年税后分红', type:'bar', data:annualDividends, barWidth:'50%',
+        itemStyle:{color:'rgba(5,150,105,0.55)',borderColor:'#059669',borderWidth:1,borderRadius:[6,6,0,0]},
         // 在柱状图上画一条水平参考线表示年定投支出
         markLine:{
           silent:true, symbol:'none',
-          label:{color:'#dc2626',formatter:'年定投 ¥'+annualOutflow.toLocaleString('zh-CN'),position:'insideEndTop',fontSize:11,fontWeight:600},
+          label:{color:'#dc2626',formatter:'年定投 ¥'+annualOutflow.toLocaleString('zh-CN'),position:'insideEndTop',fontSize:11,fontWeight:700},
           data:[{yAxis:annualOutflow, lineStyle:{color:'#dc2626',type:'dashed',width:2}}]
         }
       },
       { name:'分红覆盖率', type:'line', yAxisIndex:1, data:coveragePct, smooth:true,
         lineStyle:{color:'#db2777',width:2.5}, symbol:'circle',symbolSize:6,
         itemStyle:{color:'#db2777'},
-        markLine:{silent:true,symbol:'none',label:{color:'#db2777',formatter:'100% 拐点',position:'insideEndTop',fontSize:11},
+        markLine:{silent:true,symbol:'none',label:{color:'#db2777',formatter:'100% 拐点',position:'insideEndTop',fontSize:11,fontWeight:700},
                   data:[{yAxis:100,lineStyle:{color:'#db2777',type:'dotted',width:1.5}}]}}
     ]
   });
@@ -4147,24 +4400,28 @@ async function renderCharts() {
   }
   await renderOrUpdate('chartHeatmap', {
     tooltip: {
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#e2e8f0',
+      textStyle: { color: '#0f172a' },
       formatter: p => {
         const v = p.value[2];
-        return `${heatMonths[p.value[0]]} · 第 ${p.value[1]+1} 年<br/>分红覆盖率: <strong style="color:${v >= 100 ? '#22c55e' : v >= 50 ? '#f59e0b' : '#6b7280'}">${v}%</strong>`;
+        return `${heatMonths[p.value[0]]} · 第 ${p.value[1]+1} 年<br/>分红覆盖率: <strong style="color:${v >= 100 ? '#059669' : v >= 50 ? '#d97706' : '#64748b'}">${v}%</strong>`;
       }
     },
-    grid: { left:50, right:20, top:30, bottom:50 },
-    xAxis: { type:'category', data:heatMonths, axisLabel:{color:'#9ca3af',fontSize:11}, splitArea:{show:true} },
-    yAxis: { type:'category', data:Array.from({length:currentYear},(_,i)=>`Y${i+1}`), axisLabel:{color:'#9ca3af',fontSize:10}, splitArea:{show:true} },
+    grid: { left:60, right:20, top:30, bottom:60 },
+    xAxis: { type:'category', data:heatMonths, axisLabel:{color:'#94a3b8',fontSize:11}, splitArea:{show:true}, axisLine:{lineStyle:{color:'#cbd5e1'}} },
+    yAxis: { type:'category', data:Array.from({length:currentYear},(_,i)=>`Y${i+1}`), axisLabel:{color:'#94a3b8',fontSize:10}, splitArea:{show:true}, axisLine:{lineStyle:{color:'#cbd5e1'}} },
     visualMap: {
       min: 0, max: 120, calculable: false, orient:'horizontal', left:'center', bottom:5,
-      textStyle:{color:'#9ca3af',fontSize:10},
-      inRange:{color:['#f3f4f6','#dbeafe','#93c5fd','#22c55e','#15803d']},
+      textStyle:{color:'#94a3b8',fontSize:10},
+      inRange:{color:['#f1f5f9','#c7d2fe','#a5b4fc','#34d399','#059669']},
       text:['高覆盖率','低覆盖率']
     },
     series: [{
       name:'分红覆盖率', type:'heatmap', data: heatData,
-      label:{show:false},
-      emphasis:{itemStyle:{shadowBlur:10,shadowColor:'rgba(0,0,0,0.3)'}}
+      label:{show:true,fontSize:9,color:'#475569',formatter:p=>p.value[2]+'%'},
+      emphasis:{itemStyle:{shadowBlur:18,shadowColor:'rgba(15,23,42,0.35)',borderColor:'#fff',borderWidth:2}},
+      itemStyle:{borderColor:'#fff',borderWidth:2,borderRadius:3}
     }]
   });
 
@@ -4175,11 +4432,14 @@ async function renderCharts() {
     await renderOrUpdate('chartDrawdown', {
       tooltip: {
         trigger:'axis',
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        borderColor: '#e2e8f0',
+        textStyle: { color: '#0f172a' },
         formatter: params => {
           let html = params[0].axisValueLabel + '<br/>';
           params.forEach(p => {
             if (p.seriesName === '水下回撤') {
-              html += `${p.marker} ${p.seriesName}: <strong style="color:#dc2626">-${p.value.toFixed(2)}%</strong><br/>`;
+              html += `${p.marker} ${p.seriesName}: <strong style="color:#dc2626">${p.value.toFixed(2)}%</strong><br/>`;
             } else {
               html += `${p.marker} ${p.seriesName}: <strong>¥${Math.round(p.value/10000).toLocaleString()}万</strong><br/>`;
             }
@@ -4187,32 +4447,32 @@ async function renderCharts() {
           return html;
         }
       },
-      legend: { data:['净值曲线','水下回撤'], textStyle:{color:'#6b7280'}, top:5 },
+      legend: { data:['净值曲线','水下回撤'], textStyle:{color:'#475569',fontWeight:600}, top:8, icon:'roundRect', itemWidth:12, itemHeight:8 },
       grid: [
-        { left:70, right:60, top:40, height:'50%' },
-        { left:70, right:60, top:'65%', height:'25%' }
+        { left:70, right:60, top:48, height:'50%' },
+        { left:70, right:60, top:'72%', height:'22%' }
       ],
       xAxis: [
-        { type:'category', data:window._yearLabels || [], axisLabel:{color:'#9ca3af',show:false}, gridIndex:0 },
-        { type:'category', data:window._yearLabels || [], axisLabel:{color:'#9ca3af',fontSize:10}, gridIndex:1 }
+        { type:'category', data:window._yearLabels || [], axisLabel:{color:'#94a3b8',show:false}, gridIndex:0, axisLine:{show:false}, axisTick:{show:false} },
+        { type:'category', data:window._yearLabels || [], axisLabel:{color:'#94a3b8',fontSize:10}, gridIndex:1, axisLine:{lineStyle:{color:'#cbd5e1'}}, axisTick:{show:false} }
       ],
       yAxis: [
-        { type:'value', name:'净值', nameTextStyle:{color:'#9ca3af',fontSize:10}, axisLabel:{color:'#9ca3af',formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#e5e7eb'}}, gridIndex:0 },
-        { type:'value', name:'回撤', nameTextStyle:{color:'#9ca3af',fontSize:10}, axisLabel:{color:'#9ca3af',formatter:v=>v.toFixed(0)+'%'}, max:0, splitLine:{show:false}, gridIndex:1 }
+        { type:'value', name:'净值', nameTextStyle:{color:'#94a3b8',fontSize:10}, axisLabel:{color:'#94a3b8',fontSize:10,formatter:v=>'¥'+(v/10000).toFixed(0)+'万'}, splitLine:{lineStyle:{color:'#f1f5f9',type:'dashed'}}, gridIndex:0, axisLine:{show:false}, axisTick:{show:false} },
+        { type:'value', name:'回撤', nameTextStyle:{color:'#94a3b8',fontSize:10}, axisLabel:{color:'#94a3b8',fontSize:10,formatter:v=>v.toFixed(0)+'%'}, max:0, splitLine:{show:false}, gridIndex:1, axisLine:{show:false}, axisTick:{show:false} }
       ],
       series: [
         {
           name:'净值曲线', type:'line', data:navData, smooth:true,
-          lineStyle:{color:'#3b82f6',width:2},
-          areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(59,130,246,0.25)'},{offset:1,color:'rgba(59,130,246,0.02)'}]}},
+          lineStyle:{color:'#4f46e5',width:2.5},
+          areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(79,70,229,0.28)'},{offset:1,color:'rgba(79,70,229,0.02)'}]}},
           xAxisIndex:0, yAxisIndex:0, symbol:'none'
         },
         {
           name:'水下回撤', type:'area', data:ddData,
-          itemStyle:{color:'rgba(220,38,38,0.4)'},
+          itemStyle:{color:'rgba(220,38,38,0.45)'},
           lineStyle:{color:'#dc2626',width:1.5},
           xAxisIndex:1, yAxisIndex:1, symbol:'none',
-          markLine:{silent:true,symbol:'none',label:{color:'#dc2626',formatter:'最深回撤',position:'insideEndTop',fontSize:10},
+          markLine:{silent:true,symbol:'none',label:{color:'#dc2626',formatter:'最深回撤',position:'insideEndTop',fontSize:10,fontWeight:700},
                     data:[{type:'max',name:'最深',lineStyle:{color:'#dc2626',type:'dashed',width:1.5}}]}
         }
       ]
@@ -4259,12 +4519,12 @@ function showChartEmpty(chartId, message = '暂无数据') {
   // 移除旧空状态
   const old = parent.querySelector('.chart-empty');
   if (old) old.remove();
-  // 添加新空状态
+  // 添加新空状态（更精致的占位）
   const empty = document.createElement('div');
   empty.className = 'chart-empty';
   empty.innerHTML = `
     <div class="chart-empty-icon">▦</div>
-    <div>${message}</div>
+    <div class="chart-empty-text">${message}</div>
   `;
   parent.style.position = 'relative';
   parent.appendChild(empty);
@@ -4433,12 +4693,13 @@ function renderAllChartTables() {
   });
   
   // 8. 蒙特卡洛表
-  if (monteCarloResult) {
+  if (monteCarloResult && monteCarloResult.finalValues) {
     const mc = monteCarloResult;
+    const mcTotalInvested = mc.totalInvested || 0;
     const mcRows = mc.finalValues.map((v, i) => [
       i + 1,
       Math.round(v).toLocaleString('zh-CN'),
-      totalInvested > 0 ? ((v - totalInvested) / totalInvested * 100).toFixed(1) + '%' : '0%'
+      mcTotalInvested > 0 ? ((v - mcTotalInvested) / mcTotalInvested * 100).toFixed(1) + '%' : '0%'
     ]).slice(0, 20); // 只显示前20
     renderChartTable('tableMonteCarlo', {
       title: '蒙特卡洛模拟结果 (前20路径)',
