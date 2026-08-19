@@ -2294,33 +2294,294 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
     <div class="timing-summary" id="timingSummary"></div>
   </div>
 
-  <!-- Year Slider -->
-  <div class="year-slider-section">
+  <!-- Year Slider - Chart-based Timeline Controller -->
+  <div class="year-slider-section" id="yearSliderSection">
     <div class="year-slider-header">
-      <h2><span class="sec-tag tag-purple">TIMELINE</span> 时间范围控制</h2>
-      <div class="year-display"><span id="yearDisplayNum">20</span> <span>/ 20 年</span></div>
+      <h2><span class="sec-tag tag-purple">TIMELINE</span> 定投时间范围可视化控制</h2>
     </div>
-    <div class="slider-wrapper">
-      <input type="range" id="yearSlider" min="1" max="20" value="20" step="1">
-      <div class="slider-ticks">
-        <span>1年</span><span>5年</span><span>10年</span><span>15年</span><span>20年</span>
+    
+    <!-- 主时间轴图表：累计投入柱状图 + 三档预期收益折线 -->
+    <div style="position: relative; height: 160px; margin-bottom: 16px;">
+      <canvas id="timelineChart" style="width: 100%; height: 100%; touch-action: none;" role="img" aria-label="定投年限选择时间轴，点击柱子选择年限，显示累计投入与预期收益"></canvas>
+    </div>
+    
+    <!-- 关键指标卡片 -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+      <div style="background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; text-align:center; backdrop-filter: blur(8px);">
+        <div style="font-size:24px; font-weight:800; color:var(--text); line-height:1.2;" id="displayYear">20</div>
+        <div style="font-size:11px; color:var(--text-dim); margin-top:4px; font-weight:600;">投资年限</div>
+      </div>
+      <div style="background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; text-align:center; backdrop-filter: blur(8px);">
+        <div style="font-size:24px; font-weight:800; color:var(--text); line-height:1.2;" id="displayMonths">240</div>
+        <div style="font-size:11px; color:var(--text-dim); margin-top:4px; font-weight:600;">累计月数</div>
+      </div>
+      <div style="background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; text-align:center; backdrop-filter: blur(8px);">
+        <div style="font-size:24px; font-weight:800; color:var(--accent); line-height:1.2;" id="displayProgress">100%</div>
+        <div style="font-size:11px; color:var(--text-dim); margin-top:4px; font-weight:600;">定投进度</div>
+      </div>
+      <div style="background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; text-align:center; backdrop-filter: blur(8px);">
+        <div style="font-size:24px; font-weight:800; color:var(--text); line-height:1.2;" id="displayInvested">¥168.0万</div>
+        <div style="font-size:11px; color:var(--text-dim); margin-top:4px; font-weight:600;">累计投入</div>
       </div>
     </div>
-    <div class="quick-buttons">
-      <div class="quick-btn" data-year="1">1年</div>
-      <div class="quick-btn" data-year="3">3年</div>
-      <div class="quick-btn" data-year="5">5年</div>
-      <div class="quick-btn" data-year="10">10年</div>
-      <div class="quick-btn" data-year="15">15年</div>
-      <div class="quick-btn active" data-year="20">20年</div>
+    
+    <!-- 快速选择按钮 -->
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
+      <span style="font-size:12px; color:var(--text-dim); font-weight:600;">快速选择：</span>
+      <div id="timelineYearBtns" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
     </div>
-    <div class="progress-section">
-      <span class="progress-label">定投进度</span>
-      <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar" style="width:100%"></div></div>
-      <span class="progress-percent"><span id="progressPercent">100</span>%</span>
-      <span class="progress-label"><span id="progressLabel">240 / 240 月</span></span>
+    
+    <!-- 预期收益预览（基于历史均值估算） -->
+    <div style="padding-top: 16px; border-top: 1px solid var(--border);">
+      <h4 style="font-size:12px; font-weight:700; color:var(--text); margin: 0 0 12px;">预期收益预览（月定投 ¥7,000 · 历史均值估算）</h4>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+        <div style="background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:12px; text-align:center;">
+          <div style="font-size:10px; color:var(--text-dim); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">保守估计</div>
+          <div style="font-size:18px; font-weight:800; color:#dc2626; margin-top:4px;" id="projConservative">¥218.4万</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">年化约 6%</div>
+        </div>
+        <div style="background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:12px; text-align:center;">
+          <div style="font-size:10px; color:var(--text-dim); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">基准预期</div>
+          <div style="font-size:18px; font-weight:800; color:var(--accent); margin-top:4px;" id="projBase">¥312.8万</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">年化约 10%</div>
+        </div>
+        <div style="background: var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:12px; text-align:center;">
+          <div style="font-size:10px; color:var(--text-dim); font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">乐观估计</div>
+          <div style="font-size:18px; font-weight:800; color:#059669; margin-top:4px;" id="projOptimistic">¥445.6万</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">年化约 14%</div>
+        </div>
+      </div>
     </div>
   </div>
+
+  <!-- Chart.js for Timeline (load if not present) -->
+  <script>
+  (function() {
+    if (typeof Chart === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+      s.onload = initTimelineChart;
+      document.head.appendChild(s);
+    } else {
+      initTimelineChart();
+    }
+  })();
+
+  // 配置常量
+  const MONTHLY_INVEST = 7000;
+  const TOTAL_YEARS = 20;
+  const TOTAL_MONTHS = 240;
+  const ANNUAL_RATES = { conservative: 0.06, base: 0.10, optimistic: 0.14 };
+  let timelineChart = null;
+  let selectedTimelineYear = 20;
+
+  // 复利终值计算（月定投，月复利）
+  function calcFV(years, annualRate) {
+    const months = years * 12;
+    const r = annualRate / 12;
+    if (r === 0) return MONTHLY_INVEST * months;
+    return MONTHLY_INVEST * ((Math.pow(1 + r, months) - 1) / r);
+  }
+
+  function fmtCNY(val) {
+    if (val >= 10000) return '¥' + (val / 10000).toFixed(1) + '万';
+    return '¥' + val.toLocaleString();
+  }
+
+  // 初始化时间轴图表
+  function initTimelineChart() {
+    const ctx = document.getElementById('timelineChart')?.getContext('2d');
+    if (!ctx || typeof Chart === 'undefined') return;
+
+    // 生成 1-20 年数据
+    const years = Array.from({length: 20}, (_, i) => i + 1);
+    const investedData = years.map(y => (y * 12 * MONTHLY_INVEST) / 10000); // 万
+    const baseData = years.map(y => calcFV(y, ANNUAL_RATES.base) / 10000);
+    const optData = years.map(y => calcFV(y, ANNUAL_RATES.optimistic) / 10000);
+    const consData = years.map(y => calcFV(y, ANNUAL_RATES.conservative) / 10000);
+
+    timelineChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: years.map(y => y + '年'),
+        datasets: [{
+          label: '累计投入(万)',
+          data: investedData,
+          backgroundColor: (ctx) => ctx.dataIndex < selectedTimelineYear ? 'rgba(37, 99, 235, 0.85)' : 'rgba(229, 229, 229, 0.6)',
+          borderColor: (ctx) => ctx.dataIndex < selectedTimelineYear ? '#2563eb' : '#e5e5e5',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          borderSkipped: false,
+          maxBarThickness: 22,
+          order: 1
+        }, {
+          label: '基准预期(万)',
+          data: baseData,
+          type: 'line',
+          borderColor: '#059669',
+          borderWidth: 2.5,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          fill: false,
+          tension: 0.2,
+          order: 0
+        }, {
+          label: '乐观预期(万)',
+          data: optData,
+          type: 'line',
+          borderColor: '#d97706',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          fill: false,
+          tension: 0.2,
+          order: 0
+        }, {
+          label: '保守预期(万)',
+          data: consData,
+          type: 'line',
+          borderColor: '#dc2626',
+          borderWidth: 2,
+          borderDash: [4, 4],
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          fill: false,
+          tension: 0.2,
+          order: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            padding: 12,
+            titleFont: { size: 13, weight: '500' },
+            bodyFont: { size: 12 },
+            displayColors: true,
+            callbacks: {
+              label: ctx => {
+                const label = ctx.dataset.label;
+                const val = ctx.raw;
+                return label + ': ' + fmtCNY(val * 10000);
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: { color: 'var(--text-muted)', font: { size: 11 }, maxRotation: 0, autoSkip: false },
+            offset: true
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            min: 0,
+            max: Math.max(100, Math.ceil(optData[19] / 20) * 20),
+            grid: { color: 'rgba(229, 229, 229, 0.5)', drawBorder: false },
+            border: { display: false },
+            ticks: { color: 'var(--text-muted)', font: { size: 11 }, callback: v => v + '万', stepSize: 20 }
+          }
+        },
+        onClick: (e, elements) => {
+          if (elements.length > 0) {
+            const idx = elements[0].index;
+            selectTimelineYear(idx + 1);
+          }
+        },
+        onHover: (e, elements) => {
+          e.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+        }
+      }
+    });
+
+    // 生成快速选择按钮
+    renderYearButtons();
+    // 初始化显示
+    updateTimelineDisplay(20);
+  }
+
+  function renderYearButtons() {
+    const container = document.getElementById('timelineYearBtns');
+    if (!container) return;
+    const yearOptions = [1, 3, 5, 10, 15, 20];
+    container.innerHTML = '';
+    yearOptions.forEach(y => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = y + '年';
+      btn.dataset.year = y;
+      btn.style.cssText = 'padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:var(--card); font-size:12px; font-weight:600; color:var(--text-dim); cursor:pointer; transition:all 0.15s;';
+      if (y === selectedTimelineYear) {
+        btn.style.background = 'var(--accent)';
+        btn.style.borderColor = 'var(--accent)';
+        btn.style.color = 'white';
+      }
+      btn.addEventListener('click', () => selectTimelineYear(y));
+      container.appendChild(btn);
+    });
+  }
+
+  function selectTimelineYear(year) {
+    selectedTimelineYear = year;
+    
+    // 更新按钮状态
+    document.querySelectorAll('#timelineYearBtns button').forEach(btn => {
+      const isActive = parseInt(btn.dataset.year) === year;
+      btn.style.background = isActive ? 'var(--accent)' : 'var(--card)';
+      btn.style.borderColor = isActive ? 'var(--accent)' : 'var(--border)';
+      btn.style.color = isActive ? 'white' : 'var(--text-dim)';
+    });
+    
+    // 更新图表柱状图颜色
+    if (timelineChart) {
+      timelineChart.data.datasets[0].backgroundColor = (ctx) => 
+        ctx.dataIndex < year ? 'rgba(37, 99, 235, 0.85)' : 'rgba(229, 229, 229, 0.6)';
+      timelineChart.data.datasets[0].borderColor = (ctx) => 
+        ctx.dataIndex < year ? '#2563eb' : '#e5e5e5';
+      timelineChart.update('none');
+    }
+    
+    // 更新指标卡片
+    updateTimelineDisplay(year);
+    
+    // 关键：触发全局 setYear() 联动所有图表、摘要、回测、蒙特卡洛
+    if (typeof setYear === 'function') {
+      setYear(year);
+    }
+  }
+
+  function updateTimelineDisplay(year) {
+    const months = year * 12;
+    const progress = Math.round(months / TOTAL_MONTHS * 100);
+    const invested = months * MONTHLY_INVEST;
+    
+    const yEl = document.getElementById('displayYear');
+    const mEl = document.getElementById('displayMonths');
+    const pEl = document.getElementById('displayProgress');
+    const iEl = document.getElementById('displayInvested');
+    const cEl = document.getElementById('projConservative');
+    const bEl = document.getElementById('projBase');
+    const oEl = document.getElementById('projOptimistic');
+    
+    if (yEl) yEl.textContent = year;
+    if (mEl) mEl.textContent = months;
+    if (pEl) pEl.textContent = progress + '%';
+    if (iEl) iEl.textContent = fmtCNY(invested);
+    if (cEl) cEl.textContent = fmtCNY(calcFV(year, ANNUAL_RATES.conservative));
+    if (bEl) bEl.textContent = fmtCNY(calcFV(year, ANNUAL_RATES.base));
+    if (oEl) oEl.textContent = fmtCNY(calcFV(year, ANNUAL_RATES.optimistic));
+  }
+  </script>
 
   <!-- Summary Cards -->
   <div class="summary-grid" id="summaryGrid"></div>
@@ -4932,11 +5193,27 @@ function renderStockDetail() {
 // ============ YEAR SLIDER ============
 function setYear(year) {
   currentYear = parseInt(year);
-  document.getElementById('yearDisplayNum').textContent = currentYear;
-  document.getElementById('yearSlider').value = currentYear;
-  document.querySelectorAll('.quick-btn').forEach(b => {
-    b.classList.toggle('active', parseInt(b.dataset.year) === currentYear);
+  
+  // 同步新的图表化时间轴控制器（仅更新显示，不触发 selectTimelineYear 避免循环）
+  if (typeof updateTimelineDisplay === 'function') {
+    updateTimelineDisplay(currentYear);
+  }
+  // 同步图表柱状图高亮（不触发 setYear 回调）
+  if (typeof timelineChart !== 'undefined' && timelineChart) {
+    timelineChart.data.datasets[0].backgroundColor = (ctx) => 
+      ctx.dataIndex < currentYear ? 'rgba(37, 99, 235, 0.85)' : 'rgba(229, 229, 229, 0.6)';
+    timelineChart.data.datasets[0].borderColor = (ctx) => 
+      ctx.dataIndex < currentYear ? '#2563eb' : '#e5e5e5';
+    timelineChart.update('none');
+  }
+  // 同步快速选择按钮状态
+  document.querySelectorAll('#timelineYearBtns button').forEach(btn => {
+    const isActive = parseInt(btn.dataset.year) === currentYear;
+    btn.style.background = isActive ? 'var(--accent)' : 'var(--card)';
+    btn.style.borderColor = isActive ? 'var(--accent)' : 'var(--border)';
+    btn.style.color = isActive ? 'white' : 'var(--text-dim)';
   });
+  
   renderSummary();
   renderCharts();
   renderYearlyTable();
@@ -4949,17 +5226,6 @@ function setYear(year) {
   if (activeTab && activeTab.dataset.tab === 'backtest') {
     setTimeout(() => { try { runBacktest(); } catch(e) {} }, 100);
   }
-
-  // 进度条
-  const months = currentYear * 12;
-  const totalMonths = 240;
-  const pct = Math.round(months / totalMonths * 100);
-  const barEl = document.getElementById('progressBar');
-  const pctEl = document.getElementById('progressPercent');
-  const lblEl = document.getElementById('progressLabel');
-  if (barEl) barEl.style.width = pct + '%';
-  if (pctEl) pctEl.textContent = pct;
-  if (lblEl) lblEl.textContent = months + ' / ' + totalMonths + ' 月';
 }
 
 // ============ PORTFOLIO SNAPSHOT ============
@@ -5949,16 +6215,8 @@ window.addEventListener('themeChanged', applyChartTheme);
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.addEventListener('click', () => refreshAll(false));
 
-  // Bind year slider
-  const slider = document.getElementById('yearSlider');
-  if (slider) {
-    slider.addEventListener('input', (e) => setYear(e.target.value));
-  }
-
-  // Bind quick buttons
-  document.querySelectorAll('.quick-btn').forEach(b => {
-    b.addEventListener('click', () => setYear(b.dataset.year));
-  });
+  // 年限选择现在由图表化时间轴控制器处理（内部调用 setYear()）
+  // 旧的滑块和 quick-btn 已移除，无需绑定
 
   // Bind Monte Carlo controls
   const mcRunBtn = document.getElementById('mcRunBtn');
