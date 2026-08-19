@@ -4545,7 +4545,7 @@ function runMonteCarlo() {
   renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, worstDD, count, vol, years });
 }
 
-function renderMonteCarloChart({ pData, samples, baseline, totalInvested }) {
+async function renderMonteCarloChart({ pData, samples, baseline, totalInvested }) {
   const months = currentYear * 12;
   const labels = Array.from({ length: months }, (_, i) => `M${i + 1}`);
 
@@ -5803,11 +5803,11 @@ function deepClone(obj) {
 }
 
 // 递归替换 option 中的颜色值
-function replaceColorsInOption(obj, colors) {
+function replaceColorsInOption(obj, colors, isRoot = true) {
   if (!obj || typeof obj !== 'object') return;
   
   if (Array.isArray(obj)) {
-    obj.forEach(item => replaceColorsInOption(item, colors));
+    obj.forEach(item => replaceColorsInOption(item, colors, false));
     return;
   }
   
@@ -5848,11 +5848,12 @@ function replaceColorsInOption(obj, colors) {
         }
       }
     } else if (typeof val === 'object') {
-      replaceColorsInOption(val, colors);
+      replaceColorsInOption(val, colors, false);
     }
   }
   
-  // 统一设置通用样式
+  // 统一设置通用样式（仅顶层 option 执行，避免在 series/markLine 等嵌套对象上误设置 lineStyle 导致报错）
+  if (!isRoot) return;
   if (obj.grid) {
     if (Array.isArray(obj.grid)) {
       obj.grid.forEach(g => {
