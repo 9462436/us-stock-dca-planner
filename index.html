@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="美股定投收益预测工具">
 <title>美股定投助手</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://cdn.staticfile.org" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.staticfile.org">
 <link rel="dns-prefetch" href="https://qt.gtimg.cn">
 <link rel="dns-prefetch" href="https://push2.eastmoney.com">
 
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js" defer crossorigin="anonymous"></script>
+<script src="https://cdn.staticfile.org/echarts/5.5.0/echarts.min.js" defer crossorigin="anonymous"></script>
 <style>
 :root {
   /* Color Palette - Unified Design System (Enhanced) */
@@ -4230,6 +4231,9 @@ function toggleChartView(showChart) {
   if (!showChart) {
     // 渲染所有表格
     renderAllChartTables();
+  } else {
+    // 切回图表模式时重新渲染图表
+    renderCharts();
   }
 }
 
