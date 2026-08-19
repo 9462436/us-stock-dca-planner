@@ -5548,7 +5548,14 @@ window.addEventListener('themeChanged', applyChartTheme);
     });
   }
 
-  // 先尝试加载本地缓存
+  // 先同步服务端持仓（权威来源），确保首次渲染用正确股数
+  const serverHoldings = await loadHoldingsFromServer();
+  if (serverHoldings && Object.values(serverHoldings).some(v => v > 0)) {
+    saveHoldings(serverHoldings);
+    console.log('[Holdings] 已从服务端同步持仓:', serverHoldings);
+  }
+
+  // 再尝试加载本地缓存（此时 localStorage 已是正确股数）
   const hasCache = loadCache();
   if (hasCache) {
     renderPriceCards();
@@ -5566,15 +5573,6 @@ window.addEventListener('themeChanged', applyChartTheme);
       } catch(e) {}
     }
     showToast('info', '已加载本地缓存', '上次刷新时间 ' + new Date(JSON.parse(localStorage.getItem(CACHE_KEY)).ts).toLocaleTimeString('zh-CN'), 3000);
-  }
-
-  // 云端：从服务端 holdings.json 拉取真实持仓（权威来源）
-  const serverHoldings = await loadHoldingsFromServer();
-  if (serverHoldings && Object.values(serverHoldings).some(v => v > 0)) {
-    saveHoldings(serverHoldings);
-    renderHoldings();
-    renderRebalance();
-    console.log('[Holdings] 已从服务端同步持仓:', serverHoldings);
   }
 
   // 首次加载给完整反馈，之后每 30 秒静默刷新（用户感觉不到）
