@@ -1342,10 +1342,6 @@ body {
   -webkit-backdrop-filter: blur(16px);
 }
 
-
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1435,10 +1431,6 @@ body {
 
 .settings-panel.active {
   display: block;
-}
-
-
-  to { opacity: 1; }
 }
 
 .setting-group {
@@ -1857,14 +1849,6 @@ input:checked + .toggle-slider:before {
   transition: opacity var(--transition-fast);
   z-index: 1;
 }
-.chart-card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(79, 70, 229, 0.15), 0 8px 24px rgba(79, 70, 229, 0.08);
-  transform: translateY(-4px);
-}
-.chart-card:hover::before {
-  opacity: 1;
-}
 .chart-card .chart-title {
   font-size: var(--text-sm);
   font-weight: 600;
@@ -1895,14 +1879,6 @@ input:checked + .toggle-slider:before {
   color: var(--text-secondary);
   margin: 0 var(--space-4) var(--space-3);
   letter-spacing: 0.02em;
-}
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px 16px;
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
 }
 /* 顶部彩条（用 after，不和 ::before 玻璃效果冲突）*/
 .chart-card::after {
@@ -1985,6 +1961,8 @@ input:checked + .toggle-slider:before {
 }
 
 /* Monte Carlo Card */
+.mc-card { grid-column: 1 / -1; }
+.mc-card .chart-box { height: 340px; }
 .mc-card .mc-controls {
   display: inline-flex;
   align-items: center;
@@ -2135,8 +2113,6 @@ input:checked + .toggle-slider:before {
 .toast-desc { color: var(--text-dim); font-size: 11px; }
 .toast-close { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 4px; font-size: 16px; line-height:1; border-radius: 50%; transition: all 0.15s; }
 .toast-close:hover { color: var(--text); background: rgba(0,0,0,0.05); }
- to { opacity:1; transform:translateX(0); } }
- to { opacity:0; transform:translateX(40px); } }
 
 /* Protocol Banner */
 .protocol-banner {
