@@ -1,0 +1,42 @@
+## holdings_analysis.txt
+
+**Current positions (shares)**  
+- XQQI: 3  
+- NVDY: 34  
+- AMZY: 60  
+- QDTE: 6  
+- SPYM: 0  
+
+**Market value (USD → RMB @ 6.757039)**  
+- XQQI: $3 × 50.2393 ≈ $150.7 → ¥1,019  
+- NVDY: 34 × 13.04 ≈ $443.4 → ¥2,994  
+- AMZY: 60 × 11.04 ≈ $662.4 → ¥4,476  
+- QDTE: 6 × 29.88 ≈ $179.3 → ¥1,214  
+- **Total ≈ ¥9,703**
+
+**Weight distribution**  
+- XQQI: ~10 %  
+- NVDY: ~31 %  
+- AMZY: ~46 %  
+- QDTE: ~12 %  
+- SPYM: 0 %
+
+**Observations**  
+1. **Heavy exposure to AMZY** – the largest single weight makes the portfolio very sensitive to AMZY price swings. Recent market corrections have turned the portfolio negative.  
+2. **No SPYM exposure** – the original strategy allocated ~2 % of the fixed‑share component to SPYM; removing it eliminates a potentially stabilizing, lower‑volatility asset.  
+3. **Concentration risk** – >45 % of capital is in a single high‑beta ticker (AMZY). This amplifies both upside and downside; the recent downturn is reflected in the negative cumulative returns.  
+4. **Weight imbalance** – XQQI and QDTE hold relatively small positions despite having lower volatility; increasing their weight could improve stability.
+
+**Suggested adjustments**  
+- **Re‑balance** to reduce AMZY to ≤30 % and allocate the freed capital to XQQI and/or QDTE (or introduce a low‑volatility ETF such as a dividend‑focused US fund).  
+- **Re‑introduce a modest SPYM holding** (e.g., 1‑2 shares) to bring back a defensive component.  
+- **Monitor sector correlation** – tech‑heavy assets tend to move together; adding a non‑correlated asset (e.g., a bond ETF or a consumer‑staples ETF) can lower portfolio volatility.
+
+**Next steps**  
+- Update `holdings.json` with the re‑balanced share counts.  
+- Re‑run the back‑test (`optimistic_parameter_sweep_robust.py`) to verify that the new allocation improves the safety‑threshold hit rate.  
+- Commit the revised `holdings.json` and push to GitHub to trigger a fresh Render deployment.
+
+---
+
+*Recorded on 2026‑08‑20: Analyzed current holdings and proposed re‑balancing to mitigate negative returns and concentration risk.*
