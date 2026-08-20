@@ -2985,12 +2985,6 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
 
   <!-- Chart Controls -->
   <div class="chart-controls">
-    <div class="left-cluster">
-      <span>视图模式</span>
-      <div class="toggle-group">
-        <button class="active" id="chartViewBtn" onclick="toggleChartView(true)">图表</button>
-              </div>
-    </div>
     <button class="btn btn-cyan btn-sm export-btn" onclick="exportAllChartDataCSV()">
       <span class="rf-icon">↓</span> 导出所有图表数据 (CSV)
     </button>
@@ -3001,7 +2995,6 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
     <div class="chart-card chc-blue"><h3><span class="sec-tag tag-blue">PORTFOLIO</span> 投资组合总价值变化</h3><div class="chart-box loading" id="chartValue"></div><div class="chart-table hidden" id="tableValue"></div></div>
     <div class="chart-card chc-green"><h3><span class="sec-tag tag-green">DIVIDEND</span> 累计股息 vs 累计投入</h3><div class="chart-box loading" id="chartDividend"></div><div class="chart-table hidden" id="tableDividend"></div></div>
     <div class="chart-card chc-gold"><h3><span class="sec-tag tag-gold">CASHFLOW</span> 年度现金流（支出 vs 分红）</h3><div class="chart-box loading" id="chartCashflow"></div><div class="chart-table hidden" id="tableCashflow"></div></div>
-    <div class="chart-card chc-cyan"><h3><span class="sec-tag tag-cyan">ALLOCATION</span> 各标的持仓价值占比</h3><div class="chart-box loading" id="chartAllocation"></div><div class="chart-table hidden" id="tableAllocation"></div></div>
     <div class="chart-card chc-purple"><h3><span class="sec-tag tag-purple">RETURNS</span> 年化收益率趋势</h3><div class="chart-box loading" id="chartReturn"></div><div class="chart-table hidden" id="tableReturn"></div></div>
   </div>
 
@@ -4371,34 +4364,6 @@ async function renderCharts() {
     ]
   });
 
-  const last = dataAvailable ? data[data.length - 1] : null;
-  const pieData = dataAvailable && last
-    ? last.stocks.map(s => ({ name:s.ticker, value:Math.round(s.valueRMB) }))
-    : stockConfigs.map(s => ({ name:s.ticker, value: 100 / stockConfigs.length }));
-  const pieColors = stockConfigs.map(s => s.color);
-  await renderOrUpdate('chartAllocation', {
-    tooltip: {
-      trigger:'item',
-      backgroundColor: 'rgba(255,255,255,0.95)',
-      borderColor: '#e2e8f0',
-      textStyle: { color: '#0f172a' },
-      valueFormatter: v => '¥' + Math.round(v).toLocaleString('zh-CN')
-    },
-    legend: { orient:'vertical', right:18, top:'middle', textStyle:{color:'#475569',fontWeight:600,fontSize:11}, icon:'roundRect', itemWidth:10, itemHeight:8, itemGap:8 },
-    graphic: dataAvailable ? [] : [{
-      type:'text', left:'40%', top:'46%', style:{text:'等待计算', fill:'#94a3b8', fontSize:12, fontWeight:600}
-    }],
-    series: [{
-      type:'pie', radius:['48%','72%'], center:['38%','52%'],
-      data: pieData,
-      label:{color:'#475569',fontWeight:600,fontSize:11,formatter:'{b}\n{d}%'},
-      labelLine:{lineStyle:{color:'#cbd5e1'},length:8,length2:6},
-      color: pieColors,
-      emphasis: { itemStyle:{shadowBlur:18,shadowColor:'rgba(15,23,42,0.25)',borderColor:'#fff',borderWidth:2}, scale:true, scaleSize: 6 },
-      itemStyle: { borderColor:'#fff', borderWidth:2, borderRadius:4 }
-    }]
-  });
-
   // Annualized ROI trend
   const annualData = [];
   for (let y = 1; y <= currentYear; y++) {
@@ -4724,25 +4689,6 @@ function renderAllChartTables() {
         Math.round(yearDiv).toLocaleString('zh-CN'),
         coverage.toFixed(1),
         (gap >= 0 ? '+' : '') + Math.round(gap).toLocaleString('zh-CN')
-      ];
-    })
-  });
-  
-  // 4. 各标的持仓价值占比表
-  const last = data[data.length - 1];
-  const totalValue = last.portfolioValueRMB;
-  renderChartTable('tableAllocation', {
-    title: '各标的持仓价值占比 (当前)',
-    headers: ['标的', '持仓股数', '当前价($)', '市值(¥)', '占比(%)', '配置权重(%)'],
-    rows: last.stocks.map(s => {
-      const stock = stockConfigs.find(c => c.ticker === s.ticker);
-      return [
-        s.ticker,
-        s.shares.toFixed(2),
-        s.price.toFixed(2),
-        Math.round(s.valueRMB).toLocaleString('zh-CN'),
-        totalValue > 0 ? (s.valueRMB / totalValue * 100).toFixed(1) : '0',
-        stock ? (stock.allocation * 100).toFixed(0) : '0'
       ];
     })
   });
