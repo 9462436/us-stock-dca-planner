@@ -86,9 +86,9 @@ STOCKS = {
 }
 
 # 月定投策略配置（复星账户执行）
-# XQQI 固定 5 股 + SPYM 固定 2 股，剩余资金均分给 NVDY/AMZY/QDTE
+# XQQI 固定 5 股 + SPYM 固定 1 股，剩余资金均分给 NVDY/AMZY/QDTE/SCHG
 DCA_MONTHLY_RMB = float(os.environ.get('MONTHLY_INVEST_RMB', '7000'))
-DCA_FIXED_SHARES = [('XQQI', 5), ('SPYM', 2)]
+DCA_FIXED_SHARES = [('XQQI', 5), ('SPYM', 1)]
 DCA_REST_TICKERS = ['NVDY', 'AMZY', 'QDTE', 'SCHG']
 
 # 默认持仓（如果服务器端没有同步过，用这些）

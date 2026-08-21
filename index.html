@@ -3573,7 +3573,7 @@ function renderPriceCards() {
   const xqqiPrice = (quotes['XQQI'] && quotes['XQQI'].c > 0) ? quotes['XQQI'].c : 0;
   const spymPrice = (quotes['SPYM'] && quotes['SPYM'].c > 0) ? quotes['SPYM'].c : 0;
   const xqqiCost = 5 * xqqiPrice;
-  const spymCost = 2 * spymPrice;
+  const spymCost = 1 * spymPrice;
 
   // ETF 剩余资金（扣除 XQQI/SPYM 固定买入后）
   const remainingUSD = Math.max(0, totalUSD - xqqiCost - spymCost);
@@ -3603,9 +3603,9 @@ function renderPriceCards() {
       monthlyBuyUSD = xqqiCost;
       monthlyBuyDisplay = '5';
     } else if (s.ticker === 'SPYM') {
-      monthlyBuy = 2;
+      monthlyBuy = 1;
       monthlyBuyUSD = spymCost;
-      monthlyBuyDisplay = '2';
+      monthlyBuyDisplay = '1';
     } else {
       const varWeight = varTotalAlloc > 0 ? s.allocation / varTotalAlloc : 1 / varStocks.length;
       monthlyBuyUSD = remainingUSD * varWeight;
@@ -3969,9 +3969,9 @@ function renderEntryTiming() {
     // 建议金额 = 基础配置额 × 倍数
     let baseRMB;
     if (s.ticker === 'XQQI') baseRMB = 5 * price * safeFx;
-    else if (s.ticker === 'SPYM') baseRMB = 2 * price * safeFx;
+    else if (s.ticker === 'SPYM') baseRMB = 1 * price * safeFx;
     else {
-      const remaining = Math.max(0, monthlyUSD - 5 * (quotes['XQQI']?.c || 0) - 2 * (quotes['SPYM']?.c || 0));
+      const remaining = Math.max(0, monthlyUSD - 5 * (quotes['XQQI']?.c || 0) - 1 * (quotes['SPYM']?.c || 0));
       const varStocks = stockConfigs.filter(c => ['NVDY', 'AMZY', 'QDTE', 'SCHG'].includes(c.ticker));
       const varTotal = varStocks.reduce((a, c) => a + c.allocation, 0);
       const w = varTotal > 0 ? s.allocation / varTotal : 1 / varStocks.length;
@@ -4192,16 +4192,16 @@ function calculate() {
     let totalUSD = monthlyInvestRMB / safeFx;
     let monthInvestedUSD = 0;
 
-    // 固定买入：XQQI 5股/月，SPYM 2股/月
+    // 固定买入：XQQI 5股/月，SPYM 1股/月
     const xqqi = stocks.find(s => s.ticker === 'XQQI');
     if (xqqi && totalUSD >= 5 * xqqi.price) {
       xqqi.shares += 5; xqqi.costBasis += 5 * xqqi.price;
       monthInvestedUSD += 5 * xqqi.price; totalUSD -= 5 * xqqi.price;
     }
     const spym = stocks.find(s => s.ticker === 'SPYM');
-    if (spym && totalUSD >= 2 * spym.price) {
-      spym.shares += 2; spym.costBasis += 2 * spym.price;
-      monthInvestedUSD += 2 * spym.price; totalUSD -= 2 * spym.price;
+    if (spym && totalUSD >= 1 * spym.price) {
+      spym.shares += 1; spym.costBasis += 1 * spym.price;
+      monthInvestedUSD += 1 * spym.price; totalUSD -= 1 * spym.price;
     }
 
     // 权重分配剩余资金：NVDY/AMZY/QDTE（碎股买入）
@@ -5622,11 +5622,11 @@ function renderPortfolioSnapshot() {
 
     let shares;
     if (s.ticker === 'XQQI') shares = 5;
-    else if (s.ticker === 'SPYM') shares = 2;
+    else if (s.ticker === 'SPYM') shares = 1;
     else {
       const xqqiP = (quotes['XQQI']?.c || 0);
       const spymP = (quotes['SPYM']?.c || 0);
-      const remaining = Math.max(0, monthlyInvestRMB / safeFx - 5 * xqqiP - 2 * spymP);
+      const remaining = Math.max(0, monthlyInvestRMB / safeFx - 5 * xqqiP - 1 * spymP);
       const varStocks = stockConfigs.filter(c => ['NVDY','AMZY','QDTE','SCHG'].includes(c.ticker));
       const varTotal = varStocks.reduce((a,c)=>a+c.allocation,0);
       const w = varTotal > 0 ? s.allocation / varTotal : 1/4;
@@ -5706,14 +5706,14 @@ function renderRebalance() {
   const totalUSD = monthlyInvest / safeFx;
   const xqqiPrice = quotes['XQQI']?.c || 50;
   const spymPrice = quotes['SPYM']?.c || 90;
-  const fixedUSD = 5 * xqqiPrice + 2 * spymPrice;
+  const fixedUSD = 5 * xqqiPrice + 1 * spymPrice;
   const remainingUSD = Math.max(0, totalUSD - fixedUSD);
 
   const targetWeights = {};
   stockConfigs.forEach(s => {
     if (s.ticker === 'XQQI') targetWeights[s.ticker] = 5 * xqqiPrice;
-    else if (s.ticker === 'SPYM') targetWeights[s.ticker] = 2 * spymPrice;
-    else targetWeights[s.ticker] = remainingUSD / 3;
+    else if (s.ticker === 'SPYM') targetWeights[s.ticker] = 1 * spymPrice;
+    else targetWeights[s.ticker] = remainingUSD / 4;
   });
   const totalTargetUSD = Object.values(targetWeights).reduce((a, b) => a + b, 0);
 
