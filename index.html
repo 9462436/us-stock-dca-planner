@@ -989,7 +989,6 @@ body {
 .c-nvdy .color-line { background: linear-gradient(90deg, var(--chart-2), var(--chart-1)); }
 .c-amzy .color-line { background: linear-gradient(90deg, var(--chart-3), var(--chart-7)); }
 .c-qdte .color-line { background: linear-gradient(90deg, var(--chart-4), var(--chart-6)); }
-.c-spym .color-line { background: linear-gradient(90deg, var(--chart-5), var(--chart-4)); }
 .c-schg .color-line { background: linear-gradient(90deg, var(--chart-2), var(--chart-3)); }
 
 /* Live Dot - Enhanced */
@@ -2564,6 +2563,79 @@ body.compact .portfolio-snapshot {
 body.compact .price-grid { gap: var(--space-3); }
 body.compact .summary-grid { gap: var(--space-3); }
 body.compact .charts-grid { gap: var(--space-2); }
+
+/* Risk Quality Table - 风险与质量指标 */
+.risk-quality-table {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+.risk-quality-table::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.15) 40%, transparent 60%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+  z-index: 0;
+}
+.risk-quality-table:hover::before { opacity: 1; }
+.risk-quality-table:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+.rq-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 1;
+}
+.rq-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+}
+.rq-table thead th {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.rq-table tbody td {
+  padding: 10px 10px;
+  border-bottom: 1px dashed var(--border);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+.rq-table tbody tr:last-child td { border-bottom: none; }
+.rq-table tbody tr {
+  transition: background var(--transition-fast);
+}
+.rq-table tbody tr:hover {
+  background: var(--card-hover);
+}
 body.compact .holdings-grid { gap: var(--space-3); }
 body.compact .quick-btn { padding: var(--space-1) var(--space-3); }
 body.compact .header { padding: var(--space-3) 0 var(--space-4); }
@@ -2596,7 +2668,7 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
   <div class="header">
     <div>
       <h1>美股定投收益预测</h1>
-      <div class="subtitle">SCHG · XQQI · NVDY · AMZY · QDTE · SPYM &nbsp;|&nbsp; 月定投 ¥7,000 &nbsp;|&nbsp; 股息税 10% &nbsp;|&nbsp; 仅整数股</div>
+      <div class="subtitle">SCHG · XQQI · QDTE · NVDY · AMZY &nbsp;|&nbsp; 月定投 ¥7,000 &nbsp;|&nbsp; 股息税 10% &nbsp;|&nbsp; 按权重碎股买入</div>
     </div>
     <div class="header-right">
       <div class="status-badge" id="statusBadge"><div class="status-dot"></div><span id="statusText">连接中</span></div>
@@ -3307,12 +3379,13 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 //   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.20% 现价分红率 53.5%
 //   AMZY  起价 $20.00  现价 $10.96  价格CAGR -17.90% 现价分红率 51.6%
 //   QDTE  起价 $25.00  现价 $29.83  价格CAGR +7.50%  现价分红率 44.2%
-//   SDTY  起价 $40.00  现价 $41.82  价格CAGR +3.00%  现价分红率 26.8%
+//   SDTY  起价 $40.00  现价 $41.82  价格CAGR +3.00%  现价分红率 26.8%  (已移除)
+//   SCHG  起价 $26.95  现价 $35.10  价格CAGR +13.0%  现价分红率 0.5%
 const stockConfigs = [
   {
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
     divPerShare: 0.82, divFreq: 'monthly',
-    erosionRate: 0, allocation: 0,
+    erosionRate: 0, allocation: 25,
     sustainableYield: 0.117,      // 现价口径名义分红率（含ROC）
     rocRatio: 0.10,                // 19a-1：纳指备兑，ROC 较低
     expectedPriceReturn: 0.0082,  // NAV 历史 CAGR +0.82%
@@ -3342,22 +3415,12 @@ const stockConfigs = [
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
     divPerShare: 0.20, divFreq: 'weekly',
-    erosionRate: 0, allocation: 20,
+    erosionRate: 0, allocation: 15,
     sustainableYield: 0.442,      // 现价口径名义分红率（含ROC）
     rocRatio: 0.80,                // 19a-1 实测波动 14~80%，保守用 80%
     expectedPriceReturn: 0.075,   // NAV 历史 CAGR +7.50%
     annualVol: 0.20,
     color: '#8b5cf6', colorClass: 'c-qdte'
-  },
-  {
-    ticker: 'SPYM', name: 'YieldMax S&P 500 0DTE Covered Call ETF (SDTY)',
-    divPerShare: 0.21, divFreq: 'weekly',
-    erosionRate: 0, allocation: 0,
-    sustainableYield: 0.268,      // 现价口径名义分红率（含ROC）
-    rocRatio: 0.60,                // 19a-1 实测：0~60%，取保守长期均值
-    expectedPriceReturn: 0.03,    // NAV 历史 CAGR +3.00%
-    annualVol: 0.16,
-    color: '#06b6d4', colorClass: 'c-spym'
   },
   {
     ticker: 'SCHG', name: 'Schwab US Large-Cap Growth ETF',
@@ -3377,8 +3440,7 @@ const fallbackQuotes = {
   'NVDY': { c: 12.34, d: 0.28, dp: 2.32, h: 12.345, l: 11.882, pc: 12.06, t: Date.now()/1000|0 },
   'AMZY': { c: 11.91, d: 0.40, dp: 3.48, h: 12.00, l: 11.67, pc: 11.51, t: Date.now()/1000|0 },
   'QDTE': { c: 28.99, d: 0.27, dp: 0.94, h: 29.02, l: 28.62, pc: 28.72, t: Date.now()/1000|0 },
-  'SCHG': { c: 35.10, d: -1.02, dp: -2.82, h: 35.40, l: 35.06, pc: 36.12, t: Date.now()/1000|0 },
-  'SPYM': { c: 41.82, d: -0.12, dp: -0.29, h: 41.95, l: 41.78, pc: 41.94, t: Date.now()/1000|0 }
+  'SCHG': { c: 35.10, d: -1.02, dp: -2.82, h: 35.40, l: 35.06, pc: 36.12, t: Date.now()/1000|0 }
 };
 
 // ============ STATE ============
@@ -3569,18 +3631,8 @@ function renderPriceCards() {
   const safeFx = (Number.isFinite(fxRate) && fxRate > 0) ? fxRate : 6.75;
   const totalUSD = monthlyInvestRMB / safeFx;
 
-  // 先算 XQQI / SPYM 固定买入成本
-  const xqqiPrice = (quotes['XQQI'] && quotes['XQQI'].c > 0) ? quotes['XQQI'].c : 0;
-  const spymPrice = (quotes['SPYM'] && quotes['SPYM'].c > 0) ? quotes['SPYM'].c : 0;
-  const xqqiCost = 5 * xqqiPrice;
-  const spymCost = 1 * spymPrice;
-
-  // ETF 剩余资金（扣除 XQQI/SPYM 固定买入后）
-  const remainingUSD = Math.max(0, totalUSD - xqqiCost - spymCost);
-
-  // NVDY / AMZY / QDTE / SCHG 的权重归一化（按金额权重分剩余资金）
-  const varStocks = stockConfigs.filter(s => ['NVDY', 'AMZY', 'QDTE', 'SCHG'].includes(s.ticker));
-  const varTotalAlloc = varStocks.reduce((a, s) => a + s.allocation, 0);
+  // 所有标的按 allocation 权重分配月预算 (碎股买入)
+  const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
 
   grid.innerHTML = stockConfigs.map(s => {
     const q = quotes[s.ticker] || {};
@@ -3596,22 +3648,11 @@ function renderPriceCards() {
                    s.divFreq === 'monthly' ? s.divPerShare * 12 :
                    s.divPerShare * 4;
     const yieldPct = price > 0 ? (annDiv / price * 100).toFixed(1) : '--';
-    // 月买入股数 + 月投入金额：固定股数 vs 剩余资金权重分（碎股）
-    let monthlyBuy, monthlyBuyUSD, monthlyBuyDisplay;
-    if (s.ticker === 'XQQI') {
-      monthlyBuy = 5;
-      monthlyBuyUSD = xqqiCost;
-      monthlyBuyDisplay = '5';
-    } else if (s.ticker === 'SPYM') {
-      monthlyBuy = 1;
-      monthlyBuyUSD = spymCost;
-      monthlyBuyDisplay = '1';
-    } else {
-      const varWeight = varTotalAlloc > 0 ? s.allocation / varTotalAlloc : 1 / varStocks.length;
-      monthlyBuyUSD = remainingUSD * varWeight;
-      monthlyBuy = price > 0 ? monthlyBuyUSD / price : 0;
-      monthlyBuyDisplay = monthlyBuy.toFixed(4);
-    }
+    // 月买入股数 + 月投入金额：按 allocation 权重分配
+    const weight = totalAlloc > 0 ? s.allocation / totalAlloc : 1 / stockConfigs.length;
+    const monthlyBuyUSD = totalUSD * weight;
+    const monthlyBuy = price > 0 ? monthlyBuyUSD / price : 0;
+    const monthlyBuyDisplay = monthlyBuy.toFixed(4);
     monthlyBuy = Number.isFinite(monthlyBuy) ? monthlyBuy : 0;
     const safeMonthlyBuyUSD = Number.isFinite(monthlyBuyUSD) ? monthlyBuyUSD : 0;
     // 数据时效四态：live(盘中实时) / pre_market(盘前) / after_hours(盘后，冻结收盘价) / stale(周末/收盘) / cached(本地缓存兜底)
@@ -3966,17 +4007,10 @@ function renderEntryTiming() {
       multiplier = 0.5;
     }
 
-    // 建议金额 = 基础配置额 × 倍数
-    let baseRMB;
-    if (s.ticker === 'XQQI') baseRMB = 5 * price * safeFx;
-    else if (s.ticker === 'SPYM') baseRMB = 1 * price * safeFx;
-    else {
-      const remaining = Math.max(0, monthlyUSD - 5 * (quotes['XQQI']?.c || 0) - 1 * (quotes['SPYM']?.c || 0));
-      const varStocks = stockConfigs.filter(c => ['NVDY', 'AMZY', 'QDTE', 'SCHG'].includes(c.ticker));
-      const varTotal = varStocks.reduce((a, c) => a + c.allocation, 0);
-      const w = varTotal > 0 ? s.allocation / varTotal : 1 / varStocks.length;
-      baseRMB = remaining * w * safeFx;
-    }
+    // 建议金额 = 基础配置额 × 倍数 (按 allocation 权重分配月预算)
+    const totalAlloc = stockConfigs.reduce((a, c) => a + c.allocation, 0);
+    const weight = totalAlloc > 0 ? s.allocation / totalAlloc : 1 / stockConfigs.length;
+    const baseRMB = monthlyUSD * weight * safeFx;
     const suggestRMB = baseRMB * multiplier;
     const suggestColor = multiplier >= 1.2 ? 'var(--green)' :
                          multiplier === 1.0 ? 'var(--accent)' :
@@ -4192,23 +4226,10 @@ function calculate() {
     let totalUSD = monthlyInvestRMB / safeFx;
     let monthInvestedUSD = 0;
 
-    // 固定买入：XQQI 5股/月，SPYM 1股/月
-    const xqqi = stocks.find(s => s.ticker === 'XQQI');
-    if (xqqi && totalUSD >= 5 * xqqi.price) {
-      xqqi.shares += 5; xqqi.costBasis += 5 * xqqi.price;
-      monthInvestedUSD += 5 * xqqi.price; totalUSD -= 5 * xqqi.price;
-    }
-    const spym = stocks.find(s => s.ticker === 'SPYM');
-    if (spym && totalUSD >= 1 * spym.price) {
-      spym.shares += 1; spym.costBasis += 1 * spym.price;
-      monthInvestedUSD += 1 * spym.price; totalUSD -= 1 * spym.price;
-    }
-
-    // 权重分配剩余资金：NVDY/AMZY/QDTE（碎股买入）
-    const varStocks = stocks.filter(s => ['NVDY','AMZY','QDTE','SCHG'].includes(s.ticker));
-    const varTotalAlloc = varStocks.reduce((a,s)=>a+s.allocation,0);
-    for (const st of varStocks) {
-      const w = varTotalAlloc>0 ? st.allocation/varTotalAlloc : 1/varStocks.length;
+    // 所有标的按 allocation 权重碎股买入（无固定股数）
+    const totalAlloc = stocks.reduce((a, s) => a + s.allocation, 0);
+    for (const st of stocks) {
+      const w = totalAlloc > 0 ? st.allocation / totalAlloc : 1 / stocks.length;
       const budget = totalUSD * w;
       const canBuy = st.price > 0 ? budget / st.price : 0;
       if (canBuy > 0) { st.shares += canBuy; st.costBasis += budget; monthInvestedUSD += budget; }
@@ -4935,7 +4956,6 @@ function renderLibrary() {
     NVDY: 'YieldMax NVDA Option Income ETF，专注英伟达个股的covered call策略，每周派息，收益与NVDA股价波动率挂钩。',
     AMZY: 'YieldMax AMZN Option Income ETF，亚马逊个股的covered call策略，每周派息，捕获AMZN价格波动收益。',
     QDTE: 'Roundhill 0DTE Covered Call ETF，每日covered call策略，月度派息，追求日内时间价值衰减收益。',
-    SPYM: 'YieldMax S&P 500 Option Income ETF，标普500指数covered call策略，季度派息，提供大盘基础上的额外收益。',
     SCHG: 'Schwab US Large-Cap Growth ETF，嘉信大盘成长股ETF，跟踪道琼斯美国大盘成长指数，季度派息，长期年化约+13%（无covered call、无ROC）。'
   };
   grid.innerHTML = stockConfigs.map(s => {
@@ -5431,46 +5451,68 @@ function renderSummary() {
       <div class="value">¥${(last.totalReturnRMB / 10000).toFixed(1)}万</div>
       <div class="sub">CAGR ${(last.cagr||cagr).toFixed(1)}% · 股息再投资 · 长期可持续参数模拟</div>
     </div>
-    <div class="summary-card" style="border-left:3px solid ${sharpeColor}">
-      <div class="label">夏普比率 (年化)</div>
-      <div class="value" style="color:${sharpeColor}">${sharpe.toFixed(2)} <span style="font-size:14px;color:var(--text-dim);font-weight:600">· ${sharpeGrade}</span></div>
-      <div class="sub">年化收益 ${annRet.toFixed(1)}% · 年化波动 ${vol.toFixed(1)}%</div>
-    </div>
-    <div class="summary-card" style="border-left:3px solid ${maxDDColor}">
-      <div class="label">最大回撤 (净值)</div>
-      <div class="value" style="color:${maxDDColor}">${maxDDPct.toFixed(1)}% <span style="font-size:14px;color:var(--text-dim);font-weight:600">· ${maxDDGrade}</span></div>
-      <div class="sub">回撤区间：第 ${Math.ceil((maxDDStart+1)/12)} 年-${Math.ceil((maxDDEnd+1)/12)} 年</div>
-    </div>
-    <div class="summary-card" style="border-left:3px solid ${calmarColor}">
-      <div class="label">Calmar 比率</div>
-      <div class="value" style="color:${calmarColor}">${calmar.toFixed(2)} <span style="font-size:14px;color:var(--text-dim);font-weight:600">· ${calmarGrade}</span></div>
-      <div class="sub">年化收益/最大回撤 · 衡量下行风险调整后收益</div>
-    </div>
-    <div class="summary-card" style="border:1px solid var(--accent);border-left:3px solid var(--accent);box-shadow:0 0 0 1px rgba(37,99,235,0.05)">
-      <div class="label">${yearLabel}月均股息 (含 ROC)</div>
-      <div class="value" style="color:var(--gold)">¥${(() => {
-        // 显示"最后一年"的月均股息（含本金返还 ROC）
-        if (data.length > 12) {
-          const yearAgo = data[data.length - 13];
-          return Math.round((last.cumulativeDividendsRMB - yearAgo.cumulativeDividendsRMB) / 12).toLocaleString();
-        }
-        return Math.round(last.cumulativeDividendsRMB / Math.max(last.month, 1)).toLocaleString();
-      })()}/月</div>
-      <div class="sub">⚠️ 约 ${(last.cumulativeRocRMB / last.cumulativeDividendsRMB * 100 || 0).toFixed(0)}% 为本金返还(ROC) · 真实收益见下卡</div>
-    </div>
-    <div class="summary-card" style="border:1px solid var(--green);border-left:3px solid var(--green);box-shadow:0 0 0 1px rgba(5,150,105,0.05)">
-      <div class="label">${yearLabel}月均真实收益</div>
-      <div class="value" style="color:var(--green)">¥${(() => {
-        // 真实经济收益 = 税后现金分红 - ROC 本金返还
-        if (data.length > 12) {
-          const yearAgo = data[data.length - 13];
-          return Math.round((last.cumulativeRealDividendsRMB - yearAgo.cumulativeRealDividendsRMB) / 12).toLocaleString();
-        }
-        return Math.round(last.cumulativeRealDividendsRMB / Math.max(last.month, 1)).toLocaleString();
-      })()}/月</div>
-      <div class="sub">扣除 ROC 后的真实经济收益 · 年化约 ${(last.cumulativeRealDividendsRMB / last.investedRMB * 100 / years || 0).toFixed(1)}%</div>
+  `;
+
+  // ---------- 风险与质量指标表格（取代原先的密集卡片群）----------
+  const monthlyDiv = (data.length > 12) ?
+    Math.round((last.cumulativeDividendsRMB - data[data.length - 13].cumulativeDividendsRMB) / 12) :
+    Math.round(last.cumulativeDividendsRMB / Math.max(last.month, 1));
+  const monthlyReal = (data.length > 12) ?
+    Math.round((last.cumulativeRealDividendsRMB - data[data.length - 13].cumulativeRealDividendsRMB) / 12) :
+    Math.round(last.cumulativeRealDividendsRMB / Math.max(last.month, 1));
+  const rocPct = (last.cumulativeRocRMB / last.cumulativeDividendsRMB * 100 || 0).toFixed(0);
+  const realYieldAnnualized = (last.cumulativeRealDividendsRMB / last.investedRMB * 100 / years || 0).toFixed(1);
+  const ddRange = '第 ' + Math.ceil((maxDDStart+1)/12) + ' 年 - 第 ' + Math.ceil((maxDDEnd+1)/12) + ' 年';
+
+  const rows = [
+    { name: 'CAGR 复合年化', value: (last.cagr||cagr).toFixed(1) + '%', grade: (last.cagr||cagr) > 5 ? '优' : (last.cagr||cagr) > 0 ? '良' : '差', gradeColor: (last.cagr||cagr) > 5 ? 'var(--green)' : (last.cagr||cagr) > 0 ? 'var(--gold)' : 'var(--red)', note: '复合年化收益率 = (终值/投入)^(1/年数) − 1' },
+    { name: '年化收益 (蒙特卡洛)', value: annRet.toFixed(1) + '%', grade: annRet > 5 ? '优' : annRet > 0 ? '良' : '差', gradeColor: annRet > 5 ? 'var(--green)' : annRet > 0 ? 'var(--gold)' : 'var(--red)', note: '月度收益扣除新增投入后年化' },
+    { name: '年化波动率', value: vol.toFixed(1) + '%', grade: vol < 15 ? '优' : vol < 25 ? '良' : '差', gradeColor: vol < 15 ? 'var(--green)' : vol < 25 ? 'var(--gold)' : 'var(--red)', note: '月度收益标准差 × √12' },
+    { name: '最大回撤 (净值)', value: maxDDPct.toFixed(1) + '%', grade: maxDDGrade, gradeColor: maxDDColor, note: ddRange + ' · 峰值到谷底最大跌幅' },
+    { name: '夏普比率 (年化)', value: sharpe.toFixed(2), grade: sharpeGrade, gradeColor: sharpeColor, note: '超额收益/波动率 (Rf=3%)' },
+    { name: 'Calmar 比率', value: calmar.toFixed(2), grade: calmarGrade, gradeColor: calmarColor, note: '年化收益/最大回撤' },
+    { name: yearLabel + '月均股息 (含 ROC)', value: '¥' + monthlyDiv.toLocaleString() + '/月', grade: '—', gradeColor: 'var(--text-dim)', note: '⚠️ 约 ' + rocPct + '% 为本金返还 ROC' },
+    { name: yearLabel + '月均真实收益', value: '¥' + monthlyReal.toLocaleString() + '/月', grade: '—', gradeColor: 'var(--green)', note: '扣除 ROC · 年化约 ' + realYieldAnnualized + '%' },
+  ];
+
+  const tableHtml = `
+    <div class="risk-quality-table">
+      <div class="rq-header">
+        <span class="sec-tag tag-cyan">METRICS</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">风险与质量指标 (第 ${currentYear} 年末)</span>
+      </div>
+      <table class="rq-table">
+        <thead>
+          <tr>
+            <th style="width:32%;text-align:left;">指标</th>
+            <th style="width:22%;text-align:right;">数值</th>
+            <th style="width:14%;text-align:center;">评级</th>
+            <th style="width:32%;text-align:left;">说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td style="text-align:left;color:var(--text);font-weight:600;">${r.name}</td>
+              <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:${r.gradeColor};">${r.value}</td>
+              <td style="text-align:center;font-weight:700;color:${r.gradeColor};">${r.grade}</td>
+              <td style="text-align:left;color:var(--text-secondary);font-size:12px;">${r.note}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     </div>
   `;
+
+  // 把表格追加到 summary-grid 后面
+  const gridEl = document.getElementById('summaryGrid');
+  let tableEl = document.getElementById('riskQualityTable');
+  if (!tableEl) {
+    tableEl = document.createElement('div');
+    tableEl.id = 'riskQualityTable';
+    gridEl.parentNode.insertBefore(tableEl, gridEl.nextSibling);
+  }
+  tableEl.innerHTML = tableHtml;
 
   // 触发数字动画
   animateSummaryCards(last, monthlyInvest);
@@ -5620,18 +5662,12 @@ function renderPortfolioSnapshot() {
     const pc = q?.pc || price;
     if (!price) return null;
 
-    let shares;
-    if (s.ticker === 'XQQI') shares = 5;
-    else if (s.ticker === 'SPYM') shares = 1;
-    else {
-      const xqqiP = (quotes['XQQI']?.c || 0);
-      const spymP = (quotes['SPYM']?.c || 0);
-      const remaining = Math.max(0, monthlyInvestRMB / safeFx - 5 * xqqiP - 1 * spymP);
-      const varStocks = stockConfigs.filter(c => ['NVDY','AMZY','QDTE','SCHG'].includes(c.ticker));
-      const varTotal = varStocks.reduce((a,c)=>a+c.allocation,0);
-      const w = varTotal > 0 ? s.allocation / varTotal : 1/4;
-      shares = price > 0 ? remaining * w / price : 0;
-    }
+    // 按 allocation 权重分配月预算
+    const totalAlloc = stockConfigs.reduce((a, c) => a + c.allocation, 0);
+    const monthlyUSD = monthlyInvestRMB / safeFx;
+    const weight = totalAlloc > 0 ? s.allocation / totalAlloc : 1 / stockConfigs.length;
+    const shares = price > 0 ? (monthlyUSD * weight) / price : 0;
+
     const valueRMB = shares * price * safeFx;
     // 日盈亏用美元口径：股数 × (今价 - 昨收)，与 pc/dp 字段一致
     const dayChangeUSD = shares * (price - pc);
@@ -5704,16 +5740,13 @@ function renderRebalance() {
 
   const monthlyInvest = parseFloat(document.getElementById('monthlyInvest')?.value) || 7000;
   const totalUSD = monthlyInvest / safeFx;
-  const xqqiPrice = quotes['XQQI']?.c || 50;
-  const spymPrice = quotes['SPYM']?.c || 90;
-  const fixedUSD = 5 * xqqiPrice + 1 * spymPrice;
-  const remainingUSD = Math.max(0, totalUSD - fixedUSD);
 
+  // 按 allocation 权重分配月预算 (无固定股数)
+  const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
   const targetWeights = {};
   stockConfigs.forEach(s => {
-    if (s.ticker === 'XQQI') targetWeights[s.ticker] = 5 * xqqiPrice;
-    else if (s.ticker === 'SPYM') targetWeights[s.ticker] = 1 * spymPrice;
-    else targetWeights[s.ticker] = remainingUSD / 4;
+    const w = totalAlloc > 0 ? s.allocation / totalAlloc : 1 / stockConfigs.length;
+    targetWeights[s.ticker] = totalUSD * w;
   });
   const totalTargetUSD = Object.values(targetWeights).reduce((a, b) => a + b, 0);
 

@@ -77,22 +77,21 @@ _last_send_time = None    # 最后一次发送时间 (datetime)  # 跨线程共�
 _start_time = time.time() # 服务器启动时间
 
 STOCKS = {
-    'XQQI': {'secid': '105.XQQI', 'sina': 'gb_xqqi', 'name': 'NEOS Nasdaq-100 High Income ETF'},
-    'NVDY': {'secid': '107.NVDY', 'sina': 'gb_nvdy', 'name': 'YieldMax NVDA Option Income ETF'},
-    'AMZY': {'secid': '107.AMZY', 'sina': 'gb_amzy', 'name': 'YieldMax AMZN Option Income ETF'},
-    'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF'},
-    'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'YieldMax S&P 500 Option Income ETF'},
-    'SCHG': {'secid': '107.SCHG', 'sina': 'gb_schg', 'name': 'Schwab US Large-Cap Growth ETF'},
+    'XQQI': {'secid': '105.XQQI', 'sina': 'gb_xqqi', 'name': 'NEOS Nasdaq-100 High Income ETF', 'allocation': 25},
+    'NVDY': {'secid': '107.NVDY', 'sina': 'gb_nvdy', 'name': 'YieldMax NVDA Option Income ETF', 'allocation': 12.5},
+    'AMZY': {'secid': '107.AMZY', 'sina': 'gb_amzy', 'name': 'YieldMax AMZN Option Income ETF', 'allocation': 12.5},
+    'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF', 'allocation': 15},
+    'SCHG': {'secid': '107.SCHG', 'sina': 'gb_schg', 'name': 'Schwab US Large-Cap Growth ETF', 'allocation': 25},
 }
 
 # 月定投策略配置（复星账户执行）
-# XQQI 固定 5 股 + SPYM 固定 1 股，剩余资金均分给 NVDY/AMZY/QDTE/SCHG
+# 所有标的按 allocation 权重碎股买入，无固定股数
 DCA_MONTHLY_RMB = float(os.environ.get('MONTHLY_INVEST_RMB', '7000'))
-DCA_FIXED_SHARES = [('XQQI', 5), ('SPYM', 1)]
-DCA_REST_TICKERS = ['NVDY', 'AMZY', 'QDTE', 'SCHG']
+DCA_FIXED_SHARES = []  # 不再有固定买入
+DCA_REST_TICKERS = ['XQQI', 'NVDY', 'AMZY', 'QDTE', 'SCHG']
 
 # 默认持仓（如果服务器端没有同步过，用这些）
-DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0, 'SCHG': 0}
+DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SCHG': 0}
 
 # 派息信息（用于报表生成）
 # 注意：部分分红属本金返还(ROC)，真实经济收益需扣除 ROC 后计算
@@ -103,7 +102,6 @@ DIV_INFO = {
     'NVDY':  {'div': 0.08, 'freq': 'weekly',  'rocRatio': 0.70, 'secYield': 0.12},
     'AMZY':  {'div': 0.07, 'freq': 'weekly',  'rocRatio': 0.65, 'secYield': 0.11},
     'QDTE':  {'div': 0.60, 'freq': 'monthly', 'rocRatio': 0.80, 'secYield': 0.12},
-    'SPYM':  {'div': 0.35, 'freq': 'monthly', 'rocRatio': 0.60, 'secYield': 0.08},
     'SCHG':  {'div': 0.18, 'freq': 'quarterly', 'rocRatio': 0.0,  'secYield': 0.005},
 }
 
@@ -798,31 +796,28 @@ def push_holdings_to_github(holdings):
 
 
 def build_dca_plan(quotes, fx):
-    """基于月定投金额 + 当前价格，计算本月建议买入清单"""
+    """基于月定投金额 + 当前价格，计算本月建议买入清单 (按 allocation 权重碎股买入)"""
     total_usd = DCA_MONTHLY_RMB / fx
     plan = []
 
-    # 固定买入
-    for ticker, n in DCA_FIXED_SHARES:
-        q = quotes.get(ticker)
-        if q and q.get('c', 0) > 0:
-            price = q['c']
-            cost = n * price
-            if total_usd >= cost:
-                plan.append({'ticker': ticker, 'shares': n, 'price': price, 'cost': cost})
-                total_usd -= cost
+    # 按 STOCKS 字典里的 allocation 权重分配月预算
+    total_alloc = sum(STOCKS[t]['allocation'] for t in DCA_REST_TICKERS if t in STOCKS)
+    if total_alloc <= 0:
+        return plan
 
-    # 剩余均分给 NVDY/AMZY/QDTE
-    rest = [t for t in DCA_REST_TICKERS]
-    per = total_usd / len(rest) if rest else 0
-    for ticker in rest:
+    for ticker in DCA_REST_TICKERS:
+        if ticker not in STOCKS:
+            continue
         q = quotes.get(ticker)
-        if q and q.get('c', 0) > 0:
-            price = q['c']
-            n = int(per / price)
-            if n > 0:
-                cost = n * price
-                plan.append({'ticker': ticker, 'shares': n, 'price': price, 'cost': cost})
+        if not q or q.get('c', 0) <= 0:
+            continue
+        price = q['c']
+        w = STOCKS[ticker]['allocation']
+        budget = total_usd * (w / total_alloc)
+        n = int(budget / price)
+        if n > 0:
+            cost = n * price
+            plan.append({'ticker': ticker, 'shares': n, 'price': price, 'cost': cost})
 
     total_cost = sum(p['cost'] for p in plan)
     leftover = DCA_MONTHLY_RMB / fx - total_cost
@@ -903,7 +898,7 @@ def generate_report(holdings=None):
         monthly_div_real += real
     lines.append(f"月均分红(税后): ¥{monthly_div_gross*fx:,.0f}  (含 ROC)")
     lines.append(f"月均真实收益: ¥{monthly_div_real*fx:,.0f}  (扣除 ROC)")
-    lines.append(f"ROC 比例参考: XQQI 5% | NVDY 70% | AMZY 65% | QDTE 80% | SPYM 60% | SCHG 0%")
+    lines.append(f"ROC 比例参考: XQQI 10% | NVDY 70% | AMZY 65% | QDTE 80% | SCHG 0%")
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
 
