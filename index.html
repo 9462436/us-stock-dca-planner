@@ -990,6 +990,7 @@ body {
 .c-amzy .color-line { background: linear-gradient(90deg, var(--chart-3), var(--chart-7)); }
 .c-qdte .color-line { background: linear-gradient(90deg, var(--chart-4), var(--chart-6)); }
 .c-spym .color-line { background: linear-gradient(90deg, var(--chart-5), var(--chart-4)); }
+.c-schg .color-line { background: linear-gradient(90deg, var(--chart-2), var(--chart-3)); }
 
 /* Live Dot - Enhanced */
 .live-dot {
@@ -2595,7 +2596,7 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
   <div class="header">
     <div>
       <h1>美股定投收益预测</h1>
-      <div class="subtitle">XQQI · NVDY · AMZY · QDTE · SPYM &nbsp;|&nbsp; 月定投 ¥7,000 &nbsp;|&nbsp; 股息税 10% &nbsp;|&nbsp; 仅整数股</div>
+      <div class="subtitle">SCHG · XQQI · NVDY · AMZY · QDTE · SPYM &nbsp;|&nbsp; 月定投 ¥7,000 &nbsp;|&nbsp; 股息税 10% &nbsp;|&nbsp; 仅整数股</div>
     </div>
     <div class="header-right">
       <div class="status-badge" id="statusBadge"><div class="status-dot"></div><span id="statusText">连接中</span></div>
@@ -3357,6 +3358,16 @@ const stockConfigs = [
     expectedPriceReturn: 0.03,    // NAV 历史 CAGR +3.00%
     annualVol: 0.16,
     color: '#06b6d4', colorClass: 'c-spym'
+  },
+  {
+    ticker: 'SCHG', name: 'Schwab US Large-Cap Growth ETF',
+    divPerShare: 0.18, divFreq: 'quarterly',
+    erosionRate: 0, allocation: 25,
+    sustainableYield: 0.005,      // 现价口径名义分红率（无 covered call，几乎无 ROC）
+    rocRatio: 0.0,                // 传统成长股 ETF，无 ROC
+    expectedPriceReturn: 0.13,    // 历史 CAGR +13%（纳斯达克100成长股长期均值）
+    annualVol: 0.20,              // 单股大盘成长 ETF，年化波动约 20%
+    color: '#10b981', colorClass: 'c-schg'
   }
 ];
 
@@ -3366,6 +3377,7 @@ const fallbackQuotes = {
   'NVDY': { c: 12.34, d: 0.28, dp: 2.32, h: 12.345, l: 11.882, pc: 12.06, t: Date.now()/1000|0 },
   'AMZY': { c: 11.91, d: 0.40, dp: 3.48, h: 12.00, l: 11.67, pc: 11.51, t: Date.now()/1000|0 },
   'QDTE': { c: 28.99, d: 0.27, dp: 0.94, h: 29.02, l: 28.62, pc: 28.72, t: Date.now()/1000|0 },
+  'SCHG': { c: 35.10, d: -1.02, dp: -2.82, h: 35.40, l: 35.06, pc: 36.12, t: Date.now()/1000|0 },
   'SPYM': { c: 41.82, d: -0.12, dp: -0.29, h: 41.95, l: 41.78, pc: 41.94, t: Date.now()/1000|0 }
 };
 
@@ -3566,8 +3578,8 @@ function renderPriceCards() {
   // ETF 剩余资金（扣除 XQQI/SPYM 固定买入后）
   const remainingUSD = Math.max(0, totalUSD - xqqiCost - spymCost);
 
-  // NVDY / AMZY / QDTE 的权重归一化
-  const varStocks = stockConfigs.filter(s => ['NVDY', 'AMZY', 'QDTE'].includes(s.ticker));
+  // NVDY / AMZY / QDTE / SCHG 的权重归一化（按金额权重分剩余资金）
+  const varStocks = stockConfigs.filter(s => ['NVDY', 'AMZY', 'QDTE', 'SCHG'].includes(s.ticker));
   const varTotalAlloc = varStocks.reduce((a, s) => a + s.allocation, 0);
 
   grid.innerHTML = stockConfigs.map(s => {
@@ -3960,7 +3972,7 @@ function renderEntryTiming() {
     else if (s.ticker === 'SPYM') baseRMB = 2 * price * safeFx;
     else {
       const remaining = Math.max(0, monthlyUSD - 5 * (quotes['XQQI']?.c || 0) - 2 * (quotes['SPYM']?.c || 0));
-      const varStocks = stockConfigs.filter(c => ['NVDY', 'AMZY', 'QDTE'].includes(c.ticker));
+      const varStocks = stockConfigs.filter(c => ['NVDY', 'AMZY', 'QDTE', 'SCHG'].includes(c.ticker));
       const varTotal = varStocks.reduce((a, c) => a + c.allocation, 0);
       const w = varTotal > 0 ? s.allocation / varTotal : 1 / varStocks.length;
       baseRMB = remaining * w * safeFx;
@@ -4193,7 +4205,7 @@ function calculate() {
     }
 
     // 权重分配剩余资金：NVDY/AMZY/QDTE（碎股买入）
-    const varStocks = stocks.filter(s => ['NVDY','AMZY','QDTE'].includes(s.ticker));
+    const varStocks = stocks.filter(s => ['NVDY','AMZY','QDTE','SCHG'].includes(s.ticker));
     const varTotalAlloc = varStocks.reduce((a,s)=>a+s.allocation,0);
     for (const st of varStocks) {
       const w = varTotalAlloc>0 ? st.allocation/varTotalAlloc : 1/varStocks.length;
@@ -4923,7 +4935,8 @@ function renderLibrary() {
     NVDY: 'YieldMax NVDA Option Income ETF，专注英伟达个股的covered call策略，每周派息，收益与NVDA股价波动率挂钩。',
     AMZY: 'YieldMax AMZN Option Income ETF，亚马逊个股的covered call策略，每周派息，捕获AMZN价格波动收益。',
     QDTE: 'Roundhill 0DTE Covered Call ETF，每日covered call策略，月度派息，追求日内时间价值衰减收益。',
-    SPYM: 'YieldMax S&P 500 Option Income ETF，标普500指数covered call策略，季度派息，提供大盘基础上的额外收益。'
+    SPYM: 'YieldMax S&P 500 Option Income ETF，标普500指数covered call策略，季度派息，提供大盘基础上的额外收益。',
+    SCHG: 'Schwab US Large-Cap Growth ETF，嘉信大盘成长股ETF，跟踪道琼斯美国大盘成长指数，季度派息，长期年化约+13%（无covered call、无ROC）。'
   };
   grid.innerHTML = stockConfigs.map(s => {
     // 使用 fallback 价格估算股息率（仅供参考）
@@ -5614,9 +5627,9 @@ function renderPortfolioSnapshot() {
       const xqqiP = (quotes['XQQI']?.c || 0);
       const spymP = (quotes['SPYM']?.c || 0);
       const remaining = Math.max(0, monthlyInvestRMB / safeFx - 5 * xqqiP - 2 * spymP);
-      const varStocks = stockConfigs.filter(c => ['NVDY','AMZY','QDTE'].includes(c.ticker));
+      const varStocks = stockConfigs.filter(c => ['NVDY','AMZY','QDTE','SCHG'].includes(c.ticker));
       const varTotal = varStocks.reduce((a,c)=>a+c.allocation,0);
-      const w = varTotal > 0 ? s.allocation / varTotal : 1/3;
+      const w = varTotal > 0 ? s.allocation / varTotal : 1/4;
       shares = price > 0 ? remaining * w / price : 0;
     }
     const valueRMB = shares * price * safeFx;

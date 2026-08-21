@@ -82,16 +82,17 @@ STOCKS = {
     'AMZY': {'secid': '107.AMZY', 'sina': 'gb_amzy', 'name': 'YieldMax AMZN Option Income ETF'},
     'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF'},
     'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'YieldMax S&P 500 Option Income ETF'},
+    'SCHG': {'secid': '107.SCHG', 'sina': 'gb_schg', 'name': 'Schwab US Large-Cap Growth ETF'},
 }
 
 # 月定投策略配置（复星账户执行）
 # XQQI 固定 5 股 + SPYM 固定 2 股，剩余资金均分给 NVDY/AMZY/QDTE
 DCA_MONTHLY_RMB = float(os.environ.get('MONTHLY_INVEST_RMB', '7000'))
 DCA_FIXED_SHARES = [('XQQI', 5), ('SPYM', 2)]
-DCA_REST_TICKERS = ['NVDY', 'AMZY', 'QDTE']
+DCA_REST_TICKERS = ['NVDY', 'AMZY', 'QDTE', 'SCHG']
 
 # 默认持仓（如果服务器端没有同步过，用这些）
-DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0}
+DEFAULT_HOLDINGS = {'XQQI': 0, 'NVDY': 0, 'AMZY': 0, 'QDTE': 0, 'SPYM': 0, 'SCHG': 0}
 
 # 派息信息（用于报表生成）
 # 注意：部分分红属本金返还(ROC)，真实经济收益需扣除 ROC 后计算
@@ -103,6 +104,7 @@ DIV_INFO = {
     'AMZY':  {'div': 0.07, 'freq': 'weekly',  'rocRatio': 0.65, 'secYield': 0.11},
     'QDTE':  {'div': 0.60, 'freq': 'monthly', 'rocRatio': 0.80, 'secYield': 0.12},
     'SPYM':  {'div': 0.35, 'freq': 'monthly', 'rocRatio': 0.60, 'secYield': 0.08},
+    'SCHG':  {'div': 0.18, 'freq': 'quarterly', 'rocRatio': 0.0,  'secYield': 0.005},
 }
 
 # 大盘指数配置
@@ -901,7 +903,7 @@ def generate_report(holdings=None):
         monthly_div_real += real
     lines.append(f"月均分红(税后): ¥{monthly_div_gross*fx:,.0f}  (含 ROC)")
     lines.append(f"月均真实收益: ¥{monthly_div_real*fx:,.0f}  (扣除 ROC)")
-    lines.append(f"ROC 比例参考: XQQI 5% | NVDY 70% | AMZY 65% | QDTE 80% | SPYM 60%")
+    lines.append(f"ROC 比例参考: XQQI 5% | NVDY 70% | AMZY 65% | QDTE 80% | SPYM 60% | SCHG 0%")
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
 
