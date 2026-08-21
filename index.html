@@ -1662,6 +1662,257 @@ input:checked + .toggle-slider:before {
   transition: opacity 0.3s;
 }
 
+/* ============ AI ASSISTANT (悬浮助手) ============ */
+.ai-fab {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 999;
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35), 0 0 0 4px rgba(79, 70, 229, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: ai-fab-pulse 2.5s ease-in-out infinite;
+}
+.ai-fab:hover {
+  transform: scale(1.1) rotate(8deg);
+  box-shadow: 0 12px 32px rgba(79, 70, 229, 0.5), 0 0 0 6px rgba(79, 70, 229, 0.15);
+}
+.ai-fab:active { transform: scale(0.95); }
+.ai-fab.open {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+@keyframes ai-fab-pulse {
+  0%, 100% { box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35), 0 0 0 4px rgba(79, 70, 229, 0.1); }
+  50%      { box-shadow: 0 8px 24px rgba(79, 70, 229, 0.5),  0 0 0 12px rgba(79, 70, 229, 0.05); }
+}
+
+.ai-panel {
+  position: fixed;
+  bottom: 150px;
+  right: 24px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  height: 540px;
+  max-height: calc(100vh - 180px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl), 0 0 0 1px rgba(79, 70, 229, 0.08);
+  z-index: 998;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  animation: ai-panel-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ai-panel.open { display: flex; }
+@keyframes ai-panel-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ai-header {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.ai-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 800;
+  border: 2px solid rgba(255,255,255,0.3);
+}
+.ai-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ai-subtitle {
+  font-size: 10px;
+  opacity: 0.85;
+  font-weight: 500;
+  margin-top: 2px;
+}
+.ai-close {
+  position: absolute;
+  right: 12px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.ai-close:hover { background: rgba(255,255,255,0.35); }
+
+.ai-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--bg-elevated);
+}
+.ai-body::-webkit-scrollbar { width: 6px; }
+.ai-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+.ai-msg {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 8px;
+  animation: ai-msg-in 0.3s ease-out;
+}
+@keyframes ai-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ai-msg .ai-msg-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+}
+.ai-msg.user .ai-msg-avatar { background: var(--accent); color: #fff; }
+.ai-msg.bot  .ai-msg-avatar { background: var(--accent2); color: #fff; }
+.ai-msg-bubble {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  max-width: calc(100% - 44px);
+  word-break: break-word;
+}
+.ai-msg.user { flex-direction: row-reverse; }
+.ai-msg.user .ai-msg-bubble {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  border: none;
+}
+.ai-msg.user .ai-msg-avatar { background: var(--text-dim); color: var(--card); }
+
+.ai-msg-bubble strong { color: var(--accent); font-weight: 700; }
+.ai-msg.user .ai-msg-bubble strong { color: #fff; }
+.ai-msg-bubble code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.ai-msg.user .ai-msg-bubble code { background: rgba(255,255,255,0.25); }
+
+.ai-quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ai-quick {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+.ai-quick:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.ai-footer {
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  background: var(--card);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ai-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 8px 14px;
+  font-size: 13px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+.ai-input:focus { border-color: var(--accent); }
+.ai-send {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  border-radius: 50%;
+  width: 36px; height: 36px;
+  color: #fff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.ai-send:hover { transform: scale(1.08); }
+.ai-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ai-typing {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px 0;
+}
+.ai-typing span {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ai-typing 1.2s ease-in-out infinite;
+}
+.ai-typing span:nth-child(2) { animation-delay: 0.15s; }
+.ai-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+@media (max-width: 480px) {
+  .ai-panel { right: 12px; left: 12px; width: auto; }
+  .ai-fab { bottom: 70px; right: 14px; width: 50px; height: 50px; font-size: 22px; }
+  .shortcut-hint { display: none; }
+}
+
 /* Loading Skeleton Styles */
 .skeleton {
   background: linear-gradient(90deg, var(--border) 25%, var(--card-hover) 50%, var(--border) 75%);
@@ -3355,6 +3606,28 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
   </div>
 </div>
 
+<!-- ============ AI 悬浮助手 ============ -->
+<button class="ai-fab" id="aiFab" title="打开助手 · 问我关于定投的任何问题">
+  <span id="aiFabIcon">AI</span>
+</button>
+<div class="ai-panel" id="aiPanel">
+  <div class="ai-header">
+    <div class="ai-avatar">AI</div>
+    <div>
+      <div class="ai-title">定投助手</div>
+      <div class="ai-subtitle">基于页面实时数据 · 点击问题开始</div>
+    </div>
+    <button class="ai-close" id="aiClose" title="关闭">×</button>
+  </div>
+  <div class="ai-body" id="aiBody">
+    <!-- 消息会动态插入这里 -->
+  </div>
+  <div class="ai-footer">
+    <input type="text" class="ai-input" id="aiInput" placeholder="问我关于 NVDY/SCHG/定投..." maxlength="200">
+    <button class="ai-send" id="aiSend" title="发送">▶</button>
+  </div>
+</div>
+
 <script>
 // ============ CONFIG ============
 const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
@@ -4122,6 +4395,12 @@ function renderEntryTiming() {
   const best = stocks[0];
   const extraBuys = stocks.filter(s => s.score >= 6);
   const normalBuys = stocks.filter(s => s.score !== null && s.score < 6);
+
+  // 保存评分快照给 AI 助手使用
+  window._lastTimingScores = stocks.map(s => ({
+    ticker: s.ticker, score: s.score, signal: s.signal, reason: s.reason,
+    multiplier: s.multiplier, suggestRMB: s.suggestRMB
+  }));
 
   // 渲染评分行
   contentEl.innerHTML = stocks.map(s => {
@@ -6856,6 +7135,9 @@ window.addEventListener('themeChanged', applyChartTheme);
 
   // ============ THEME SWITCH ============
   initThemeToggle();
+
+  // ============ AI ASSISTANT ============
+  initAIAssistant();
 })();
 
 function initSettingsPanel() {
@@ -7386,6 +7668,281 @@ function initThemeToggle() {
   });
 
   apply(cur);
+}
+
+// ============ AI ASSISTANT (数据驱动) ============
+function initAIAssistant() {
+  const fab = document.getElementById('aiFab');
+  const panel = document.getElementById('aiPanel');
+  const body = document.getElementById('aiBody');
+  const input = document.getElementById('aiInput');
+  const sendBtn = document.getElementById('aiSend');
+  const closeBtn = document.getElementById('aiClose');
+  const fabIcon = document.getElementById('aiFabIcon');
+
+  if (!fab || !panel) return;
+
+  // ---- 快捷问题模板 (用户首屏可见，点击即问) ----
+  const QUICK_QUESTIONS = [
+    '我亏了该怎么办？',
+    '今天该加码哪只？',
+    '什么是 ROC？为什么 NVDY 股息高但我在亏？',
+    '现在定投收益如何？',
+    '20 年后能赚多少？',
+    '帮我看看 SCHG 怎么样',
+    '组合最大的风险是什么？',
+    '什么是 DCA (定投)？',
+  ];
+
+  // ---- 数据快照 (每次响应前实时拉取) ----
+  function snapshot() {
+    const data = (typeof getFilteredData === 'function') ? getFilteredData() : [];
+    const last = data[data.length - 1] || {};
+    const totalReturnPct = last.investedRMB > 0
+      ? ((last.totalValueRMB - last.investedRMB) / last.investedRMB) * 100 : 0;
+    const cagr = last.cagr || 0;
+    const monthlyInvest = parseFloat(document.getElementById('monthlyInvest')?.value) || 7000;
+    return { data, last, totalReturnPct, cagr, monthlyInvest, fxRate, quotes, currentYear };
+  }
+
+  // ---- 添加消息到面板 ----
+  function addMsg(role, text, withQuick = false) {
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-msg ' + role;
+    const avatar = document.createElement('div');
+    avatar.className = 'ai-msg-avatar';
+    avatar.textContent = role === 'user' ? '我' : 'AI';
+    const bubble = document.createElement('div');
+    bubble.className = 'ai-msg-bubble';
+    bubble.innerHTML = text;
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    if (withQuick) {
+      const row = document.createElement('div');
+      row.className = 'ai-quick-row';
+      row.style.marginLeft = '36px';
+      QUICK_QUESTIONS.forEach(q => {
+        const btn = document.createElement('button');
+        btn.className = 'ai-quick';
+        btn.textContent = q;
+        btn.onclick = () => handleUserInput(q);
+        row.appendChild(btn);
+      });
+      wrap.appendChild(row);
+    }
+    body.appendChild(wrap);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  // ---- 显示"正在输入"动画 ----
+  function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-msg bot';
+    wrap.id = 'aiTyping';
+    wrap.innerHTML = `<div class="ai-msg-avatar">AI</div>
+      <div class="ai-msg-bubble"><div class="ai-typing"><span></span><span></span><span></span></div></div>`;
+    body.appendChild(wrap);
+    body.scrollTop = body.scrollHeight;
+  }
+  function hideTyping() {
+    const t = document.getElementById('aiTyping');
+    if (t) t.remove();
+  }
+
+  // ---- 智能响应引擎 (基于关键词 + 实时数据) ----
+  function generateReply(question, snap) {
+    const q = question.toLowerCase();
+    const { last, totalReturnPct, cagr, monthlyInvest } = snap;
+
+    // 1. 亏损相关
+    if (/亏|亏损|亏钱|跌|浮亏|赔/.test(q)) {
+      const lossRmb = Math.abs((last.totalValueRMB - last.investedRMB) / 10000).toFixed(1);
+      const years = (last.month || 1) / 12;
+      const annualizedLoss = last.investedRMB > 0
+        ? (Math.pow(last.totalValueRMB / last.investedRMB, 12 / Math.max(last.month, 1)) - 1) * 100
+        : 0;
+      if (totalReturnPct >= 0) {
+        return `当前 <strong style="color:var(--green)">盈利 ${totalReturnPct.toFixed(1)}%</strong>，账面赚 ¥${Math.abs((last.totalValueRMB - last.investedRMB)/10000).toFixed(1)}万。<br>
+          <br>你没有亏！这 ${Math.ceil(years)} 年累计投入 ¥${(last.investedRMB/10000).toFixed(1)}万，市值 ¥${(last.totalValueRMB/10000).toFixed(1)}万。<br>
+          <br>提示：短期波动是正常的，定投核心是<strong>纪律</strong>，不因短期涨跌改变节奏。`;
+      }
+      // 真实亏损
+      const worst = stockConfigs.reduce((a, s) => {
+        const p = (snap.quotes[s.ticker]?.c || 0);
+        const cagr = s.expectedPriceReturn || 0;
+        return p > 0 && cagr < (a?.cagr || 999) ? { ...s, cagr } : a;
+      }, null);
+      let worstHint = '';
+      if (worst) {
+        const dp = snap.quotes[worst.ticker]?.dp || 0;
+        worstHint = `<br>最大拖累：<strong>${worst.ticker}</strong> (NAV CAGR ${(worst.cagr*100).toFixed(1)}% · 今日 ${dp>=0?'+':''}${dp.toFixed(2)}%)`;
+      }
+      return `当前 <strong style="color:var(--red)">账面亏 ${totalReturnPct.toFixed(1)}%</strong> (¥${lossRmb}万)。${worstHint}<br>
+        <br><strong>该怎么做？</strong><br>
+        1️⃣ <strong>不要停</strong>：定投最怕停止，浮亏变实亏才是真亏<br>
+        2️⃣ <strong>检查评分</strong>：高分 (>7.5) 的标的强力加码 1.5×<br>
+        3️⃣ <strong>看预警卡片</strong>：顶部第 5 张卡片告诉你当前等级<br>
+        4️⃣ <strong>长期视角</strong>：20 年后这点波动占比 < 0.5%`;
+    }
+
+    // 2. 加码/买入时机
+    if (/加码|买入|该买|今天买|加仓|入场/.test(q)) {
+      const extraBuys = (window._lastTimingScores || []).filter(s => s.score >= 6);
+      if (extraBuys.length === 0) {
+        return `当前没有标的进入折扣区。<br><br><strong>建议</strong>：按标准计划定投 (×1.0)，定投核心是<strong>纪律 > 时机</strong>。暴跌加码容易追涨杀跌。`;
+      }
+      const top = extraBuys.sort((a,b) => b.score - a.score)[0];
+      return `今日 <strong style="color:var(--green)">${extraBuys.length}</strong> 个标的进入折扣区：<br>
+        <br>🥇 <strong>${top.ticker}</strong> (评分 ${top.score.toFixed(1)}/10 · ${top.signal})<br>
+        建议金额：<strong>¥${Math.round(top.suggestRMB)}</strong> (×${top.multiplier})<br>
+        <br>${top.reason || '详见评分卡'}<br>
+        <br>💡 评分 ≥7.5 时强力加码 1.5×，6-7.5 折扣入场 1.2×`;
+    }
+
+    // 3. ROC / NVDY / 备兑 ETF 解释
+    if (/roc|本金返还|股息|为什么.*亏|nvdy|amzy|高股息|备兑/.test(q)) {
+      return `<strong>ROC (Return of Capital) = 本金返还</strong><br>
+        <br>不是分红！是把你自己的本金"还"给你。<br>
+        <br><strong>NVDY 为例</strong>：<br>
+        • 名义股息率：<strong>53.5%</strong> (看起来很高)<br>
+        • 但 ROC 占比：<strong>93%</strong><br>
+        • 真实股息率：53.5% × 7% = <strong>仅 3.7%</strong><br>
+        • NAV CAGR：<strong>-12.2%/年</strong> (股价在跌)<br>
+        <br>你看到的"高股息"其实是<strong>你自己的钱</strong>，已通过 NAV 下跌提前扣除。<br>
+        <br>这就是为什么 NVDY/AMZY 短期看赚、长期却亏。<br>
+        <br>✅ <strong>解决方案</strong>：降低 NVDY/AMZY 占比，提高 SCHG (+13%) / QDTE (+7.5%) 占比`;
+    }
+
+    // 4. SCHG / QDTE 特定
+    const tickerMatch = q.match(/\b(schg|qdte|xqqi|nvdy|amzy|spym)\b/i);
+    if (tickerMatch) {
+      const tk = tickerMatch[1].toUpperCase();
+      const cfg = stockConfigs.find(s => s.ticker === tk);
+      const q = snap.quotes[tk];
+      if (cfg && q) {
+        const annDiv = cfg.divFreq === 'weekly' ? cfg.divPerShare * 52 :
+                       cfg.divFreq === 'monthly' ? cfg.divPerShare * 12 :
+                       cfg.divPerShare * 4;
+        const yieldPct = (annDiv / q.c * 100).toFixed(2);
+        const realYield = (yieldPct * (1 - (cfg.rocRatio || 0))).toFixed(2);
+        return `<strong>${tk} · ${cfg.name}</strong><br>
+          <br>📊 当前价：$${q.c.toFixed(2)} (${q.dp >= 0 ? '+' : ''}${q.dp.toFixed(2)}%)<br>
+          💰 名义股息率：${yieldPct}%<br>
+          💎 真实股息率 (扣 ROC)：<strong>${realYield}%</strong><br>
+          📈 NAV CAGR：${(cfg.expectedPriceReturn * 100).toFixed(1)}%<br>
+          🎯 配置权重：${cfg.allocation}%<br>
+          <br>${tk === 'NVDY' || tk === 'AMZY' ? '⚠️ <strong>高 ROC 警示</strong>：分红大部分是本金返还，不是真收益。' : ''}${tk === 'SCHG' || tk === 'XQQI' ? '✅ <strong>真成长股</strong>：价格 CAGR 是真实回报。' : ''}`;
+      }
+    }
+
+    // 5. 20 年总收益
+    if (/20年|二十|长期|收益|能赚|未来|终值/.test(q)) {
+      const years = last.month / 12;
+      const finalVal = last.totalValueRMB || 0;
+      const totalInvest = last.investedRMB || 0;
+      return `<strong>20 年定投预览</strong><br>
+        <br>📅 已模拟：${years.toFixed(1)} 年<br>
+        💵 累计投入：¥${(totalInvest/10000).toFixed(1)}万<br>
+        📊 组合市值：¥${(finalVal/10000).toFixed(1)}万<br>
+        📈 总回报：<strong style="color:${finalVal >= totalInvest ? 'var(--green)' : 'var(--red)'}">${totalReturnPct >= 0 ? '+' : ''}${totalReturnPct.toFixed(1)}%</strong><br>
+        🚀 年化 CAGR：<strong>${cagr >= 0 ? '+' : ''}${cagr.toFixed(2)}%</strong><br>
+        <br>调整 <code>月投金额</code> 或 <code>年限</code> 滑块可看到不同情景。`;
+    }
+
+    // 6. 风险
+    if (/风险|回撤|波动|最大回撤|夏普|亏损|不亏/.test(q)) {
+      return `<strong>当前组合主要风险</strong><br>
+        <br>🔴 <strong>结构性负 CAGR</strong>：NVDY/AMZY 各占 12.5%，每年 -12%~-18% NAV 损耗<br>
+        🟡 <strong>高 ROC 占比</strong>：NVDY 93% / AMZY 80% / QDTE 80% 分红是本金返还<br>
+        🟢 <strong>波动率</strong>：组合年化波动 ~20%，不算高<br>
+        <br><strong>应对</strong>：<br>
+        1. 把 NVDY/AMZY 占比从 12.5% 各降到 5-8%<br>
+        2. 把 SCHG 占比提到 30-35%<br>
+        3. 用 V3 评分识别真折扣 (远离均线 + 真实高息 + 低 NAV 损耗)`;
+    }
+
+    // 7. DCA / 定投是什么
+    if (/dca|定投是什么|什么是定投|分散|分批/.test(q)) {
+      return `<strong>DCA (Dollar-Cost Averaging) 定投</strong><br>
+        <br>每月固定金额买入同一组标的，<strong>不预测市场</strong>，靠纪律穿越牛熊。<br>
+        <br><strong>三大好处</strong>：<br>
+        ✅ <strong>摊平成本</strong>：高价少买、低价多买<br>
+        ✅ <strong>强制储蓄</strong>：避免乱花<br>
+        ✅ <strong>反人性</strong>：别人贪婪你恐惧时，你在买<br>
+        <br><strong>本工具默认设置</strong>：月投 ¥7,000，按权重分配到 SCHG/XQQI/QDTE/NVDY/AMZY<br>
+        <br>💡 配合 V3 评分，在评分 >7.5 时加码 1.5×，是更聪明的 DCA。`;
+    }
+
+    // 8. 通用问候 / 默认
+    if (/你好|hi|hello|在吗|你是/.test(q)) {
+      return `你好！我是你的<strong>定投助手</strong> 🤖<br>
+        <br>我可以帮你：<br>
+        • 诊断当前组合健康度<br>
+        • 推荐今天的加码/减量标的<br>
+        • 解释 ROC、NVDY、高股息等概念<br>
+        • 估算 20 年长期收益<br>
+        <br>点击下方问题或直接问我！`;
+    }
+
+    // 默认：引导用户
+    return `我理解你的问题："${question}"<br>
+      <br>我的强项是 <strong>基于页面实时数据</strong> 回答：<br>
+      • 当前组合收益、亏损、加码建议<br>
+      • 5 只标的的实时价格/股息率/CAGR<br>
+      • DCA、ROC、备兑 ETF 等概念解释<br>
+      <br>试试点击下方快捷问题，或直接问我"我亏了怎么办"。`;
+  }
+
+  // ---- 处理用户输入 ----
+  function handleUserInput(text) {
+    if (!text || !text.trim()) return;
+    addMsg('user', text);
+    input.value = '';
+    sendBtn.disabled = true;
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      const snap = snapshot();
+      const reply = generateReply(text, snap);
+      addMsg('bot', reply);
+      sendBtn.disabled = false;
+    }, 700 + Math.random() * 400);  // 模拟思考时间
+  }
+
+  // ---- 事件绑定 ----
+  fab.addEventListener('click', () => {
+    const isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      panel.classList.remove('open');
+      fab.classList.remove('open');
+      fabIcon.textContent = 'AI';
+    } else {
+      panel.classList.add('open');
+      fab.classList.add('open');
+      fabIcon.textContent = '×';
+      // 首次打开显示欢迎
+      if (body.children.length === 0) {
+        addMsg('bot', `你好！我是你的<strong>定投助手</strong> 🤖<br><br>基于页面实时数据回答你的定投问题。试试问我"我亏了怎么办"。`, true);
+      }
+      input.focus();
+    }
+  });
+  closeBtn.addEventListener('click', () => fab.click());
+  sendBtn.addEventListener('click', () => handleUserInput(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleUserInput(input.value);
+    }
+  });
+
+  // ESC 关闭
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && panel.classList.contains('open')) {
+      fab.click();
+    }
+  });
+}
   // 自动模式下，每分钟检查一次时间
   setInterval(() => {
     if (cur === 'auto') apply('auto');
