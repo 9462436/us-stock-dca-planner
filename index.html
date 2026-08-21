@@ -5453,6 +5453,53 @@ function renderSummary() {
     </div>
   `;
 
+  // ---------- 浮亏预警卡片（基于"组合市值 vs 累计投入"的回报率）----------
+  // 注意：这是模拟场景下的"账面"回报率，与实盘持仓的"成本均价"不同。
+  // 阈值设计参考行业 DCA 心理承受线：-10% 关注 / -20% 加码 / -30% 严重
+  const totalReturnPct = last.investedRMB > 0
+    ? ((last.totalValueRMB - last.investedRMB) / last.investedRMB) * 100
+    : 0;
+  const unrealizedAbsRMB = last.totalValueRMB - last.investedRMB;  // 正数=亏，负数=赚
+  // 浮亏信号分级
+  let lossLevel, lossColor, lossBg, lossIcon, lossTip;
+  if (totalReturnPct >= 0) {
+    lossLevel = '盈利中'; lossColor = 'var(--green)'; lossBg = 'rgba(5,150,105,0.08)'; lossIcon = '✓';
+    lossTip = '当前账面盈利，继续按计划定投';
+  } else if (totalReturnPct >= -10) {
+    lossLevel = '正常波动'; lossColor = 'var(--accent)'; lossBg = 'rgba(37,99,235,0.06)'; lossIcon = '·';
+    lossTip = '短期波动属正常，定投纪律 > 短期涨跌';
+  } else if (totalReturnPct >= -20) {
+    lossLevel = '关注'; lossColor = 'var(--gold)'; lossBg = 'rgba(217,119,6,0.10)'; lossIcon = '!';
+    lossTip = '跌幅 >10% · 检查 NVDY/AMZY 占比，考虑加码强势标的 (SCHG/QDTE)';
+  } else if (totalReturnPct >= -30) {
+    lossLevel = '警告'; lossColor = '#ea580c'; lossBg = 'rgba(234,88,12,0.10)'; lossIcon = '⚠';
+    lossTip = '跌幅 >20% · 启用强力加码信号 (评分 ≥7.5 时 1.5× 买入)';
+  } else {
+    lossLevel = '严重'; lossColor = 'var(--red)'; lossBg = 'rgba(220,38,38,0.12)'; lossIcon = '✕';
+    lossTip = '跌幅 >30% · 重新评估资产配置，检查是否需要止部分损';
+  }
+  const lossCardHtml = `
+    <div class="summary-card" style="border:2px solid ${lossColor};border-left:5px solid ${lossColor};background:${lossBg};box-shadow:0 0 0 1px ${lossColor}20, var(--shadow-sm);">
+      <div class="label" style="color:${lossColor};font-weight:800;">
+        <span style="display:inline-block;width:18px;height:18px;text-align:center;line-height:18px;border-radius:50%;background:${lossColor};color:#fff;font-size:11px;font-weight:800;margin-right:6px;">${lossIcon}</span>
+        ${yearLabel}浮亏预警
+      </div>
+      <div class="value" style="color:${lossColor};font-variant-numeric:tabular-nums;">
+        ${totalReturnPct >= 0 ? '+' : ''}${totalReturnPct.toFixed(1)}%
+      </div>
+      <div class="sub" style="color:${lossColor};font-weight:700;">
+        ${lossLevel} · 账面 ${unrealizedAbsRMB >= 0 ? '亏' : '赚'} ¥${Math.abs(unrealizedAbsRMB/10000).toFixed(2)}万
+      </div>
+      <div class="sub" style="margin-top:6px;padding-top:6px;border-top:1px dashed ${lossColor}40;color:var(--text-secondary);font-weight:500;">
+        ${lossTip}
+      </div>
+    </div>
+  `;
+  // 插入到 summaryGrid 末尾
+  const lossEl = document.createElement('div');
+  lossEl.innerHTML = lossCardHtml;
+  document.getElementById('summaryGrid').appendChild(lossEl.firstElementChild);
+
   // ---------- 风险与质量指标表格（取代原先的密集卡片群）----------
   const monthlyDiv = (data.length > 12) ?
     Math.round((last.cumulativeDividendsRMB - data[data.length - 13].cumulativeDividendsRMB) / 12) :
