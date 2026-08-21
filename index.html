@@ -3936,56 +3936,113 @@ function renderEntryTiming() {
                    s.divPerShare * 4;
     const yieldPct = price > 0 ? (annDiv / price * 100) : 0;
 
-    // ---------- 5 维评分 ----------
-    // 1. 日涨跌幅 (-3 ~ +1.5)：跌幅加分多，溢价扣分少
-    let dipScore;
-    if (dp <= -3)        dipScore = 3.5;  // 大崩 → 强力加码
-    else if (dp <= -1.5)  dipScore = 2.5;  // 显著折扣
-    else if (dp <= -0.5)  dipScore = 1.5;  // 合理折扣
-    else if (dp <= 0.2)   dipScore = 0.5;  // 微折扣
-    else if (dp <= 1.5)   dipScore = 0;    // 温和上涨，不惩罚
-    else if (dp <= 3)     dipScore = -1;   // 小幅溢价
-    else                  dipScore = -2;   // 大幅溢价
+    // ---------- V3 评分系统 (6 维加权) ----------
+    // 权重：日内跌幅 25% + 日内位置 10% + 均线偏离 20% + 中期位置 20%
+    //       + 股息吸引力 10% + 可持续性惩罚 15%
+    // 关键改进：用真实历史价计算中期位置（不再用 scoreHistory 凑数）；
+    //          高名义股息率扣除 ROC；负 CAGR 的"折扣"会被惩罚
 
-    // 2. 日内位置 (-1.0 ~ +1.0)：当前价靠近日内低点更好
-    let intraScore;
-    if (intradayPos < 0.25)      intraScore = 1.0;
-    else if (intradayPos < 0.55) intraScore = 0.3;
-    else if (intradayPos < 0.80) intraScore = -0.3;
-    else                          intraScore = -0.8;
-
-    // 3. 股息吸引力 (-0.3 ~ +0.8)
-    let yieldScore;
-    if (yieldPct > 40)      yieldScore = 0.8;
-    else if (yieldPct > 20) yieldScore = 0.4;
-    else if (yieldPct > 8)  yieldScore = 0;
-    else                     yieldScore = -0.3;
-
-    // 4. 52 周相对位置（用过去 20 天 scoreHistory 模拟）
+    const historyArr = (loadPriceHistory()[s.ticker] || []).map(h => h.c);
     const scoreHistory = (window._scoreHistory || {})[s.ticker] || [];
-    let pos52w = 0.5;
-    if (scoreHistory.length > 0) {
-      // 简化：用 score 的历史均值估算
-      const avg = scoreHistory.reduce((a,b)=>a+b,0) / scoreHistory.length;
-      pos52w = Math.min(1, Math.max(0, avg / 10));
-    }
-    let posScore;
-    if (pos52w < 0.25)      posScore = 0.8;
-    else if (pos52w < 0.45) posScore = 0.4;
-    else if (pos52w < 0.65) posScore = 0;
-    else if (pos52w < 0.80) posScore = -0.3;
-    else                     posScore = -0.6;
 
-    // 5. 月度动量（基于 score 历史趋势）
-    let momScore = 0;
-    if (scoreHistory.length >= 5) {
-      const recent = scoreHistory.slice(-3).reduce((a,b)=>a+b,0) / 3;
-      const older = scoreHistory.slice(-7, -3).reduce((a,b)=>a+b,0) / 4;
-      const momentum = recent - older;
-      momScore = momentum > 1 ? 0.5 : momentum > 0.3 ? 0.2 : momentum < -1 ? -0.5 : momentum < -0.3 ? -0.2 : 0;
+    // ---------- 维度 1: 日内跌幅 (权重 25%, 范围 -1.8 ~ +3) ----------
+    let dipScore;
+    if (dp <= -5)        dipScore = 3.0;  // 暴跌 → 强力加码
+    else if (dp <= -3)    dipScore = 2.5;  // 大跌
+    else if (dp <= -1.5)  dipScore = 2.0;  // 显著折扣
+    else if (dp <= -0.5)  dipScore = 1.2;  // 合理折扣
+    else if (dp <= 0.5)   dipScore = 0.4;  // 微折扣/平稳
+    else if (dp <= 1.5)   dipScore = -0.3; // 温和上涨
+    else if (dp <= 3)     dipScore = -1.0; // 小幅溢价
+    else                  dipScore = -1.8; // 大幅溢价
+
+    // ---------- 维度 2: 日内位置 (权重 10%, 范围 -0.9 ~ +1) ----------
+    let intraScore;
+    if (intradayPos < 0.20)      intraScore = 1.0;
+    else if (intradayPos < 0.40) intraScore = 0.6;
+    else if (intradayPos < 0.60) intraScore = 0.1;
+    else if (intradayPos < 0.80) intraScore = -0.4;
+    else                          intraScore = -0.9;
+
+    // ---------- 维度 3: 均线偏离 (权重 20%, 范围 -1.8 ~ +2) ----------
+    // 用真实历史价计算 MA5/MA20，现价 vs 均线偏离越大越加分（下方）
+    let maScore = 0;
+    let maStatus = '数据积累中';
+    if (historyArr.length >= 20) {
+      const ma5  = historyArr.slice(-5).reduce((a,b)=>a+b,0) / 5;
+      const ma20 = historyArr.slice(-20).reduce((a,b)=>a+b,0) / 20;
+      const dev5  = (price - ma5)  / ma5  * 100;
+      const dev20 = (price - ma20) / ma20 * 100;
+      const avgDev = dev5 * 0.6 + dev20 * 0.4;
+      if (avgDev <= -8)        maScore = 2.0;
+      else if (avgDev <= -4)   maScore = 1.5;
+      else if (avgDev <= -2)   maScore = 1.0;
+      else if (avgDev <= -0.5) maScore = 0.4;
+      else if (avgDev <= 1)    maScore = 0;
+      else if (avgDev <= 3)    maScore = -0.8;
+      else if (avgDev <= 6)    maScore = -1.4;
+      else                     maScore = -1.8;
+      maStatus = `MA5 ${dev5>=0?'+':''}${dev5.toFixed(1)}% · MA20 ${dev20>=0?'+':''}${dev20.toFixed(1)}%`;
+    } else if (historyArr.length >= 5) {
+      const ma5 = historyArr.slice(-5).reduce((a,b)=>a+b,0) / 5;
+      const dev5 = (price - ma5) / ma5 * 100;
+      maScore = dev5 <= -2 ? 1.0 : dev5 <= 0.5 ? 0.3 : dev5 <= 2 ? -0.3 : -0.8;
+      maStatus = `MA5 ${dev5>=0?'+':''}${dev5.toFixed(1)}% (样本少)`;
     }
 
-    const rawScore = 5 + dipScore + intraScore + yieldScore + posScore + momScore;
+    // ---------- 维度 4: 中期位置 (权重 20%, 范围 -1.4 ~ +1.5) ----------
+    // 用近 30 个真实历史数据点计算高低位
+    let posScore = 0;
+    let posStatus = '积累中';
+    if (historyArr.length >= 10) {
+      const window = historyArr.slice(-30);
+      const min = Math.min(...window);
+      const max = Math.max(...window);
+      const range = max - min;
+      const posInRange = range > 0 ? (price - min) / range : 0.5;
+      if (posInRange <= 0.15)      posScore = 1.5;
+      else if (posInRange <= 0.35) posScore = 1.0;
+      else if (posInRange <= 0.55) posScore = 0.3;
+      else if (posInRange <= 0.75) posScore = -0.5;
+      else if (posInRange <= 0.90) posScore = -1.0;
+      else                          posScore = -1.4;
+      posStatus = `近 ${window.length} 点 ${Math.round(posInRange*100)}% 位`;
+    }
+
+    // ---------- 维度 5: 股息吸引力 (权重 10%, 范围 -0.3 ~ +0.8) ----------
+    // 关键：扣除 ROC，高名义股息不等于真折扣
+    const realYieldPct = yieldPct * (1 - (s.rocRatio || 0));
+    let yieldScore;
+    if (realYieldPct > 5)        yieldScore = 0.8;
+    else if (realYieldPct > 2)   yieldScore = 0.5;
+    else if (realYieldPct > 0.5) yieldScore = 0.2;
+    else if (realYieldPct > 0)   yieldScore = 0;
+    else                          yieldScore = -0.3;
+
+    // ---------- 维度 6: 可持续性惩罚 (权重 15%, 范围 -2.5 ~ +0.8) ----------
+    // 关键洞察：负 CAGR 的"折扣"是结构性损耗，不能简单视为机会
+    // ROC 占比惩罚 + NAV CAGR 惩罚 + 正 CAGR 加分
+    let sustainScore = 0;
+    const navCagr = s.expectedPriceReturn || 0;
+    const rocRatio = s.rocRatio || 0;
+    sustainScore -= rocRatio * 3;             // 每 10% ROC 扣 0.3 分
+    if (navCagr < -0.15)      sustainScore -= 1.0;
+    else if (navCagr < -0.10) sustainScore -= 0.6;
+    else if (navCagr < -0.05) sustainScore -= 0.3;
+    else if (navCagr < 0)      sustainScore -= 0.1;
+    else if (navCagr > 0.10)   sustainScore += 0.8;
+    else if (navCagr > 0.05)   sustainScore += 0.4;
+    sustainScore = Math.max(-2.5, Math.min(0.8, sustainScore));
+
+    // ---------- 加权汇总 (基础分 5 分 + 加权因子) ----------
+    const weightedBonus =
+      dipScore     * 0.25 +
+      intraScore   * 0.10 +
+      maScore      * 0.20 +
+      posScore     * 0.20 +
+      yieldScore   * 0.10 +
+      sustainScore * 0.15;
+    const rawScore = 5 + weightedBonus;
     const score = Math.max(0, Math.min(10, Math.round(rawScore * 10) / 10));
 
     // 4 档信号标签
@@ -4019,22 +4076,25 @@ function renderEntryTiming() {
                       multiplier === 1.0 ? 'rgba(37,99,235,0.06)' :
                       multiplier >= 0.75 ? 'rgba(217,119,6,0.06)' : 'rgba(107,114,128,0.05)';
 
-    // 因子明细（hover 显示）
+    // 因子明细（hover 显示）- V3 六维
     const factors = [
-      { name:'日涨跌', value:`${dp>=0?'+':''}${dp.toFixed(2)}%`, score: dipScore, hot: dipScore > 1, cold: dipScore < -0.5 },
-      { name:'日内位', value:`${Math.round(intradayPos*100)}%`, score: intraScore, hot: intradayPos < 0.3, cold: intradayPos > 0.8 },
-      { name:'股息率', value:`${yieldPct.toFixed(0)}%`, score: yieldScore, hot: yieldScore > 0.3 },
-      { name:'中期位', value:`${Math.round(pos52w*100)}%`, score: posScore, hot: posScore > 0.3 },
-      { name:'动量', value: momScore > 0 ? '↑' : momScore < 0 ? '↓' : '→', score: momScore }
+      { name:'日内跌幅', value:`${dp>=0?'+':''}${dp.toFixed(2)}%`, score: dipScore, hot: dipScore > 1, cold: dipScore < -0.3 },
+      { name:'日内位置', value:`${Math.round(intradayPos*100)}%`, score: intraScore, hot: intraScore > 0.3, cold: intraScore < -0.3 },
+      { name:'均线偏离', value: maStatus, score: maScore, hot: maScore > 0.5, cold: maScore < -0.5 },
+      { name:'中期位置', value: posStatus, score: posScore, hot: posScore > 0.3, cold: posScore < -0.3 },
+      { name:'真实股息', value:`${realYieldPct.toFixed(1)}%`, score: yieldScore, hot: yieldScore > 0.3 },
+      { name:'可持续', value:`ROC ${Math.round((s.rocRatio||0)*100)}% · CAGR ${((s.expectedPriceReturn||0)*100).toFixed(1)}%`, score: sustainScore, hot: sustainScore > 0.2, cold: sustainScore < -1 }
     ];
 
-    // 关键提示
+    // 关键提示 - 基于 V3 多维度
     const tips = [];
-    if (dp <= -2) tips.push('深跌加码');
-    else if (dp <= -0.5) tips.push('折扣入场');
-    else if (dp > 1) tips.push('微溢价');
-    if (intradayPos < 0.3) tips.push('日内低位');
-    if (yieldPct > 35) tips.push('高股息');
+    if (dp <= -3) tips.push('深跌加码');
+    else if (dp <= -0.5) tips.push('日内折扣');
+    if (intradayPos < 0.30) tips.push('日内低位');
+    if (maScore > 1.0) tips.push('远离均线');
+    if (posScore > 0.5) tips.push('近期低点');
+    if (sustainScore < -1.5) tips.push('结构性高风险');
+    if (realYieldPct > 5) tips.push('真实高息');
     const reason = tips.length > 0 ? tips.join(' · ') : '按计划买入';
 
     return {
