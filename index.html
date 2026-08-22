@@ -3825,7 +3825,10 @@ async function fetchAllQuotes() {
 
   for (const endpoint of endpoints) {
     try {
-      const resp = await fetch(endpoint, { cache: 'no-store' });
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 6000);  // 6 秒超时
+      const resp = await fetch(endpoint, { cache: 'no-store', signal: ctrl.signal });
+      clearTimeout(timer);
       if (!resp.ok) continue;
       const result = await resp.json();
       if (!result || !result.quotes) continue;
@@ -6222,7 +6225,10 @@ async function loadHoldingsFromServer() {
   // 云端部署时：服务端 holdings.json 是权威来源（与部署一起持久化）
   if (window.location.protocol === 'file:') return null;  // 本地 file:// 不查服务端
   try {
-    const resp = await fetch(apiUrl('/api/load-holdings'), { cache: 'no-store' });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);  // 3 秒超时
+    const resp = await fetch(apiUrl('/api/load-holdings'), { cache: 'no-store', signal: ctrl.signal });
+    clearTimeout(timer);
     if (!resp.ok) return null;
     const data = await resp.json();
     if (data && data.holdings && typeof data.holdings === 'object') {
@@ -6996,8 +7002,20 @@ window.addEventListener('themeChanged', applyChartTheme);
 
 // Init
 (async function init() {
+  // 防御性代码：无论后续发生什么，先把加载遮罩隐藏（默认 3 秒后强制解除）
+  // 防止某一步 fetch 卡住导致用户永远看不到页面
+  const forceHideLoading = setTimeout(() => {
+    const loading = document.getElementById('loading');
+    if (loading && !loading.classList.contains('hidden')) {
+      console.warn('[Init] 加载超时，强制隐藏遮罩');
+      loading.classList.add('hidden');
+    }
+  }, 8000);
+
   // 先探测 API 基地址
-  await probeApiBase();
+  try {
+    await probeApiBase();
+  } catch(e) { console.warn('[Init] probeApiBase 失败:', e); }
 
   // 检测协议
   detectProtocol();
@@ -7089,11 +7107,14 @@ window.addEventListener('themeChanged', applyChartTheme);
   }
 
   // 先同步服务端持仓（权威来源），确保首次渲染用正确股数
-  const serverHoldings = await loadHoldingsFromServer();
-  if (serverHoldings && Object.values(serverHoldings).some(v => v > 0)) {
-    saveHoldings(serverHoldings);
-    console.log('[Holdings] 已从服务端同步持仓:', serverHoldings);
-  }
+  // 包一层 try-catch + 超时，防止卡住整个 init
+  try {
+    const serverHoldings = await loadHoldingsFromServer();
+    if (serverHoldings && Object.values(serverHoldings).some(v => v > 0)) {
+      saveHoldings(serverHoldings);
+      console.log('[Holdings] 已从服务端同步持仓:', serverHoldings);
+    }
+  } catch(e) { console.warn('loadHoldingsFromServer 失败:', e); }
 
   // 再尝试加载本地缓存（此时 localStorage 已是正确股数）
   const hasCache = loadCache();
@@ -7118,9 +7139,13 @@ window.addEventListener('themeChanged', applyChartTheme);
   // 确保无论缓存渲染是否出错，都隐藏加载遮罩
   const loading = document.getElementById('loading');
   if (loading) loading.classList.add('hidden');
+  clearTimeout(forceHideLoading);  // 主动隐藏后取消强制计时器
 
   // 首次加载给完整反馈，之后每 30 秒静默刷新（用户感觉不到）
-  await refreshAll(!hasCache);
+  // 包一层 try-catch 防止 refreshAll 抛错导致页面空白
+  try {
+    await refreshAll(!hasCache);
+  } catch(e) { console.warn('refreshAll 失败:', e); }
 
   // 大盘数据独立每 60 秒刷新（不跟股价刷新同一节奏）
   setInterval(async () => {
