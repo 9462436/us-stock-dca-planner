@@ -7693,6 +7693,10 @@ function initThemeToggle() {
   });
 
   apply(cur);
+  // 自动模式下，每分钟检查一次时间
+  setInterval(() => {
+    if (cur === 'auto') apply('auto');
+  }, 60000);
 }
 
 // ============ AI ASSISTANT (数据驱动) ============
@@ -7967,11 +7971,6 @@ function initAIAssistant() {
       fab.click();
     }
   });
-}
-  // 自动模式下，每分钟检查一次时间
-  setInterval(() => {
-    if (cur === 'auto') apply('auto');
-  }, 60000);
 }
 </script>
 </body>
