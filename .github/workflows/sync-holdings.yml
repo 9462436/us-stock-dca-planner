@@ -1,0 +1,59 @@
+name: Sync Holdings from Cloud
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'      # 每 5 分钟
+  workflow_dispatch:             # 允许手动触发
+
+permissions:
+  contents: write                # 允许 push
+
+jobs:
+  # Job 1: 外部 ping 保持 Render 服务不睡眠（免费版 15 分钟休眠限制）
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render
+        run: |
+          for i in 1 2 3; do
+            curl -fsS https://us-stock-dca-planner.onrender.com/api/fx -o /dev/null -w '%{http_code} %{time_total}s\n' && break
+            sleep 5
+          done
+
+  # Job 2: 从云端同步持仓（每 5 分钟）
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch cloud holdings
+        id: fetch
+        run: |
+          CLOUD=$(curl -fsSL https://us-stock-dca-planner.onrender.com/api/load-holdings \
+            | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['holdings']))")
+          echo "cloud=$CLOUD"
+
+          LOCAL=$(jq -c '.' holdings.json 2>/dev/null || echo '{}')
+          echo "local=$LOCAL"
+
+          if [ "$CLOUD" != "$LOCAL" ]; then
+            echo "$CLOUD" | python3 -m json.tool > holdings.json
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "不变，跳过"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push
+        if: steps.fetch.outputs.changed == 'true'
+        run: |
+          git config user.name "Auto Sync"
+          git config user.email "sync@local"
+          git add holdings.json
+          # 先同步远端最新 commits（避免 push 冲突）
+          git pull --rebase --autostash origin main || git pull --rebase origin main
+          # commit 即使无变化也不报错
+          git commit -m "自动同步：来自云端最新持仓" || echo "no changes to commit"
+          git push

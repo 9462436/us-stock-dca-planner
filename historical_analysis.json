@@ -1,0 +1,57 @@
+[
+  {
+    "ticker": "XQQI",
+    "years": 2.614647501711157,
+    "start_price": 45.15,
+    "end_price": 48.42,
+    "cum_div": 6.0,
+    "avg_div_yield": 0.05082534657598581,
+    "nav_change": 0.027103470639086913,
+    "total_return_cagr": 0.07403359212479033,
+    "roc_ratio": 0
+  },
+  {
+    "ticker": "NVDY",
+    "years": 3.260780287474333,
+    "start_price": 19.91,
+    "end_price": 13.09,
+    "cum_div": 41.18,
+    "avg_div_yield": 0.6342982969964335,
+    "nav_change": -0.12068440426733396,
+    "total_return_cagr": 0.36004563843463444,
+    "roc_ratio": 0.19026443053497988
+  },
+  {
+    "ticker": "AMZY",
+    "years": 2.614647501711157,
+    "start_price": 21.15,
+    "end_price": 10.96,
+    "cum_div": 24.96,
+    "avg_div_yield": 0.4513579146708255,
+    "nav_change": -0.22230818076840697,
+    "total_return_cagr": 0.22454823266703627,
+    "roc_ratio": 0.4925319209934226
+  },
+  {
+    "ticker": "QDTE",
+    "years": 2.43668720054757,
+    "start_price": 46.44,
+    "end_price": 29.83,
+    "cum_div": 36.12,
+    "avg_div_yield": 0.3191947565543071,
+    "nav_change": -0.16611448930712813,
+    "total_return_cagr": 0.15481432784098192,
+    "roc_ratio": 0.5204173498973683
+  },
+  {
+    "ticker": "SPYM",
+    "years": 2.614647501711157,
+    "start_price": 95.5,
+    "end_price": 90.47,
+    "cum_div": 8.0,
+    "avg_div_yield": 0.03203859543323922,
+    "nav_change": -0.02048150893637113,
+    "total_return_cagr": 0.011781989465867282,
+    "roc_ratio": 0.6392761186753553
+  }
+]
