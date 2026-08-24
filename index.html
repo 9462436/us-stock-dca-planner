@@ -5813,7 +5813,7 @@ function renderSummary() {
     lossTip = '短期波动属正常，定投纪律 > 短期涨跌';
   } else if (totalReturnPct >= -20) {
     lossLevel = '关注'; lossColor = 'var(--gold)'; lossBg = 'rgba(217,119,6,0.10)'; lossIcon = '!';
-    lossTip = '跌幅 >10% · 检查 NVDY/AMZY 占比，考虑加码强势标的 (SCHG/QDTE)';
+    lossTip = '跌幅 >10% · 检查 NVDY 占比，考虑加码强势标的 (SCHG/QDTE)';
   } else if (totalReturnPct >= -30) {
     lossLevel = '警告'; lossColor = '#ea580c'; lossBg = 'rgba(234,88,12,0.10)'; lossIcon = '⚠';
     lossTip = '跌幅 >20% · 启用强力加码信号 (评分 ≥7.5 时 1.5× 买入)';
@@ -7839,8 +7839,8 @@ function initAIAssistant() {
         • 真实股息率：53.5% × 7% = <strong>仅 3.7%</strong><br>
         • NAV CAGR：<strong>-12.2%/年</strong> (股价在跌)<br>
         <br>你看到的"高股息"其实是<strong>你自己的钱</strong>，已通过 NAV 下跌提前扣除。<br>
-        <br>这就是为什么 NVDY/AMZY 短期看赚、长期却亏。<br>
-        <br>✅ <strong>解决方案</strong>：降低 NVDY/AMZY 占比，提高 SCHG (+13%) / QDTE (+7.5%) 占比`;
+        <br>这就是为什么 NVDY 短期看赚、长期却亏。<br>
+        <br>✅ <strong>解决方案</strong>：降低 NVDY 占比(当前5%)，提高 SCHG (+13%) / QDTE (+7.5%) 占比`;
     }
 
     // 4. SCHG / QDTE 特定
@@ -7861,7 +7861,7 @@ function initAIAssistant() {
           💎 真实股息率 (扣 ROC)：<strong>${realYield}%</strong><br>
           📈 NAV CAGR：${(cfg.expectedPriceReturn * 100).toFixed(1)}%<br>
           🎯 配置权重：${cfg.allocation}%<br>
-          <br>${tk === 'NVDY' || tk === 'AMZY' ? '⚠️ <strong>高 ROC 警示</strong>：分红大部分是本金返还，不是真收益。' : ''}${tk === 'SCHG' || tk === 'XQQI' ? '✅ <strong>真成长股</strong>：价格 CAGR 是真实回报。' : ''}`;
+          <br>${tk === 'NVDY' ? '⚠️ <strong>高 ROC 警示</strong>：分红大部分是本金返还，不是真收益。' : ''}${tk === 'SCHG' || tk === 'XQQI' || tk === 'SPYM' ? '✅ <strong>真成长股</strong>：价格 CAGR 是真实回报。' : ''}`;
       }
     }
 
@@ -7882,11 +7882,11 @@ function initAIAssistant() {
     // 6. 风险
     if (/风险|回撤|波动|最大回撤|夏普|亏损|不亏/.test(q)) {
       return `<strong>当前组合主要风险</strong><br>
-        <br>🔴 <strong>结构性负 CAGR</strong>：NVDY/AMZY 各占 12.5%，每年 -12%~-18% NAV 损耗<br>
-        🟡 <strong>高 ROC 占比</strong>：NVDY 93% / AMZY 80% / QDTE 80% 分红是本金返还<br>
+        <br>🔴 <strong>结构性负 CAGR</strong>：NVDY 占 5%，每年 -12% NAV 损耗<br>
+        🟡 <strong>高 ROC 占比</strong>：NVDY 93% / QDTE 80% 分红是本金返还<br>
         🟢 <strong>波动率</strong>：组合年化波动 ~20%，不算高<br>
         <br><strong>应对</strong>：<br>
-        1. 把 NVDY/AMZY 占比从 12.5% 各降到 5-8%<br>
+        1. 把 NVDY 占比控制在 5% 以下<br>
         2. 把 SCHG 占比提到 30-35%<br>
         3. 用 V3 评分识别真折扣 (远离均线 + 真实高息 + 低 NAV 损耗)`;
     }
@@ -7899,7 +7899,7 @@ function initAIAssistant() {
         ✅ <strong>摊平成本</strong>：高价少买、低价多买<br>
         ✅ <strong>强制储蓄</strong>：避免乱花<br>
         ✅ <strong>反人性</strong>：别人贪婪你恐惧时，你在买<br>
-        <br><strong>本工具默认设置</strong>：月投 ¥7,000，按权重分配到 SCHG/XQQI/QDTE/NVDY/AMZY<br>
+        <br><strong>本工具默认设置</strong>：月投 ¥7,000，按权重分配到 SCHG/SPYM/XQQI/QDTE/NVDY<br>
         <br>💡 配合 V3 评分，在评分 >7.5 时加码 1.5×，是更聪明的 DCA。`;
     }
 
