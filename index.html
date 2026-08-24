@@ -5802,7 +5802,7 @@ function renderSummary() {
   const totalReturnPct = last.investedRMB > 0
     ? ((last.totalValueRMB - last.investedRMB) / last.investedRMB) * 100
     : 0;
-  const unrealizedAbsRMB = last.totalValueRMB - last.investedRMB;  // 正数=亏，负数=赚
+  const unrealizedAbsRMB = last.totalValueRMB - last.investedRMB;  // 正数=赚，负数=亏
   // 浮亏信号分级
   let lossLevel, lossColor, lossBg, lossIcon, lossTip;
   if (totalReturnPct >= 0) {
@@ -5831,7 +5831,7 @@ function renderSummary() {
         ${totalReturnPct >= 0 ? '+' : ''}${totalReturnPct.toFixed(1)}%
       </div>
       <div class="sub" style="color:${lossColor};font-weight:700;">
-        ${lossLevel} · 账面 ${unrealizedAbsRMB >= 0 ? '亏' : '赚'} ¥${Math.abs(unrealizedAbsRMB/10000).toFixed(2)}万
+        ${lossLevel} · 账面 ${unrealizedAbsRMB >= 0 ? '赚' : '亏'} ¥${Math.abs(unrealizedAbsRMB/10000).toFixed(2)}万
       </div>
       <div class="sub" style="margin-top:6px;padding-top:6px;border-top:1px dashed ${lossColor}40;color:var(--text-secondary);font-weight:500;">
         ${lossTip}
