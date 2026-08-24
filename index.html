@@ -3660,6 +3660,10 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 //   QDTE  起价 $25.00  现价 $29.83  价格CAGR +7.50%   现价分红率 44.2%
 //   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.20%  现价分红率 53.5%  (少量配置)
 const stockConfigs = [
+  // dripEnabled: 是否对该ETF开启股息再投资(DRIP)
+  //   true  = 股息自动买入本ETF（默认行为）
+  //   false = 股息提取为现金，模拟中定向定投到核心资产(SCHG)
+  // dripRedirectTarget: 当dripEnabled=false时，股息重定向到哪个ETF
   {
     ticker: 'SCHG', name: 'Schwab US Large-Cap Growth ETF',
     divPerShare: 0.18, divFreq: 'quarterly',
@@ -3668,6 +3672,7 @@ const stockConfigs = [
     rocRatio: 0.0,
     expectedPriceReturn: 0.13,
     annualVol: 0.20,
+    dripEnabled: true,
     color: '#10b981', colorClass: 'c-schg'
   },
   {
@@ -3678,6 +3683,7 @@ const stockConfigs = [
     rocRatio: 0.0,
     expectedPriceReturn: 0.05,
     annualVol: 0.12,
+    dripEnabled: true,
     color: '#06b6d4', colorClass: 'c-spym'
   },
   {
@@ -3688,6 +3694,7 @@ const stockConfigs = [
     rocRatio: 0.10,
     expectedPriceReturn: 0.0082,
     annualVol: 0.15,
+    dripEnabled: true,
     color: '#3b82f6', colorClass: 'c-xqqi'
   },
   {
@@ -3698,6 +3705,7 @@ const stockConfigs = [
     rocRatio: 0.80,
     expectedPriceReturn: 0.08,
     annualVol: 0.20,
+    dripEnabled: false, dripRedirectTarget: 'SCHG',
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
   {
@@ -3708,6 +3716,7 @@ const stockConfigs = [
     rocRatio: 0.93,
     expectedPriceReturn: 0.10,
     annualVol: 0.45,
+    dripEnabled: false, dripRedirectTarget: 'SCHG',
     color: '#22c55e', colorClass: 'c-nvdy'
   }
 ];
@@ -4551,6 +4560,7 @@ function calculate() {
       totalDividendsEarned: 0,
       totalRealDividends: 0,
       rocComponentTotal: 0,
+      dripRedirectedIn: 0, // 从高息ETF重定向到本ETF的累计金额
       price: px, initialPrice: px,
       trueDivYield: trueYield,
       monthlyPriceRet: monthlyPriceRet,
@@ -4588,6 +4598,8 @@ function calculate() {
     //   ROC（本金返还）不是收益，是把你自己的本金还给你，已通过 NAV 侵蚀体现。
     //   因此 DRIP 只再投资「真实收益」（= 现金分红 - ROC），ROC 部分不再投资，
     //   避免 ROC 被双重计算（既当收益再投，又让 NAV 下跌）。
+    //   dripEnabled=false 的ETF：真实收益提取为现金，定向定投到核心资产。
+    let dripRedirectPool = 0; // 本月待重定向的股息现金池（USD）
     for (const st of stocks) {
       if (st.shares <= 0) continue;
       // 1. 现金分红总额（含 ROC），税后
@@ -4601,9 +4613,30 @@ function calculate() {
       // 3. 真实经济收益 = 现金分红 - ROC
       const netRealDiv = netCashDiv - netRoc;
       st.totalRealDividends += netRealDiv;
-      // 4. DRIP：只再投资真实收益（ROC 本金返还不再投，避免双重计算）
-      st.shares += netRealDiv / st.price;
-      st.costBasis += netRealDiv;
+      // 4. DRIP 逻辑
+      if (st.dripEnabled !== false) {
+        // 默认：只再投资真实收益（ROC 本金返还不再投，避免双重计算）
+        st.shares += netRealDiv / st.price;
+        st.costBasis += netRealDiv;
+      } else {
+        // dripEnabled=false：不复投本ETF，真实收益进入重定向资金池
+        // ROC 部分也提取（本质是本金返还，不应留在高息ETF中继续承担NAV衰减风险）
+        dripRedirectPool += netCashDiv;
+      }
+    }
+    // 5. 重定向资金池：买入核心资产(dripRedirectTarget)
+    if (dripRedirectPool > 0) {
+      for (const st of stocks) {
+        if (st.dripEnabled !== false) continue; // 只找开启了DRIP的核心资产
+        // 优先注入SCHG（第一顺位核心资产）
+      }
+      const target = stocks.find(s => s.ticker === 'SCHG');
+      if (target && target.price > 0) {
+        const addShares = dripRedirectPool / target.price;
+        target.shares += addShares;
+        target.costBasis += dripRedirectPool;
+        target.dripRedirectedIn += dripRedirectPool; // 累计重定向金额
+      }
     }
 
     // ===== 价格变动：预期价格回报 + 随机噪声 =====
@@ -4650,7 +4683,8 @@ function calculate() {
         dividendsRMB: s.totalDividendsEarned * safeFx,
         realDividendsRMB: s.totalRealDividends * safeFx,
         rocComponentRMB: s.rocComponentTotal * safeFx,
-        costBasisRMB: s.costBasis * safeFx
+        costBasisRMB: s.costBasis * safeFx,
+        dripRedirectedInRMB: s.dripRedirectedIn * safeFx
       }))
     });
   }
@@ -5770,6 +5804,11 @@ function renderSummary() {
   const years = last.month / 12;
   const cagr = last.investedRMB > 0 ? (Math.pow(last.totalValueRMB / last.investedRMB, 1/years) - 1) * 100 : 0;
 
+  // ---------- 6b. DRIP 重定向统计 ----------
+  const schgStock = last.stocks.find(s => s.ticker === 'SCHG');
+  const totalRedirectedRMB = schgStock ? schgStock.dripRedirectedInRMB : 0;
+  const totalRedirectedWan = totalRedirectedRMB / 10000;
+
   // ---------- 7. 水下图数据（用于下方图表） ----------
   const drawdownCurve = navCurve.map((v, i) => {
     const peak = Math.max(...navCurve.slice(0, i+1));
@@ -5797,6 +5836,12 @@ function renderSummary() {
       <div class="value">¥${(last.totalReturnRMB / 10000).toFixed(1)}万</div>
       <div class="sub">CAGR ${(last.cagr||cagr).toFixed(1)}% · 股息再投资 · 长期可持续参数模拟</div>
     </div>
+    ${totalRedirectedWan > 0.01 ? `
+    <div class="summary-card c-cyan" style="border-left:3px solid #06b6d4">
+      <div class="label">DRIP 重定向 → SCHG</div>
+      <div class="value">¥${totalRedirectedWan.toFixed(1)}万</div>
+      <div class="sub">QDTE/NVDY分红灌入核心 · 避免高息ETF NAV衰减</div>
+    </div>` : ''}
   `;
 
   // ---------- 盈亏状态卡片（基于"组合市值 vs 累计投入"的回报率）----------
@@ -5911,6 +5956,73 @@ function renderSummary() {
     gridEl.parentNode.insertBefore(tableEl, gridEl.nextSibling);
   }
   tableEl.innerHTML = tableHtml;
+
+  // ---------- DRIP 策略面板 + NAV 衰减警告 ----------
+  const highYieldETFs = stockConfigs.filter(s => s.dripEnabled === false);
+  const coreETFs = stockConfigs.filter(s => s.dripEnabled !== false);
+  const dripPanelHtml = `
+    <div class="risk-quality-table" style="margin-top:12px;">
+      <div class="rq-header">
+        <span class="sec-tag tag-purple">DRIP STRATEGY</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);">股息再投资策略 (以战养战)</span>
+      </div>
+      <table class="rq-table">
+        <thead>
+          <tr>
+            <th style="width:18%;text-align:left;">ETF</th>
+            <th style="width:14%;text-align:center;">DRIP</th>
+            <th style="width:14%;text-align:right;">分红率</th>
+            <th style="width:14%;text-align:right;">ROC占比</th>
+            <th style="width:40%;text-align:left;">策略说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${stockConfigs.map(s => {
+            const isDripOn = s.dripEnabled !== false;
+            const dripStatus = isDripOn
+              ? '<span style="color:var(--green);font-weight:700;">ON</span>'
+              : '<span style="color:var(--red);font-weight:700;">OFF</span>';
+            const target = s.dripRedirectTarget ? ' → ' + s.dripRedirectTarget : '';
+            const note = isDripOn
+              ? '股息自动复投本ETF'
+              : '分红提取' + target + ' · 避免NAV衰减 · ROC本金返还不留场';
+            return `<tr>
+              <td style="text-align:left;font-weight:700;color:${s.color};">${s.ticker}</td>
+              <td style="text-align:center;">${dripStatus}${isDripOn ? '' : target}</td>
+              <td style="text-align:right;font-family:var(--font-mono);">${(s.sustainableYield*100).toFixed(1)}%</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:${s.rocRatio>0.5?'var(--gold)':'var(--text)'};">${(s.rocRatio*100).toFixed(0)}%</td>
+              <td style="text-align:left;color:var(--text-secondary);font-size:13px;">${note}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      ${totalRedirectedWan > 0.01 ? `
+      <div style="padding:10px 16px;background:rgba(6,182,212,0.06);border-top:1px solid rgba(6,182,212,0.15);font-size:13px;color:var(--text-secondary);">
+        <strong style="color:#06b6d4;">累计重定向：</strong>¥${totalRedirectedWan.toFixed(1)}万 从 QDTE/NVDY 分红灌入 SCHG 核心底仓
+      </div>` : ''}
+    </div>
+
+    <div class="risk-quality-table" style="margin-top:12px;">
+      <div class="rq-header">
+        <span class="sec-tag tag-red">NAV RISK</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);">NAV 衰减风险提示</span>
+      </div>
+      <div style="padding:12px 16px;font-size:13px;line-height:1.8;color:var(--text-secondary);">
+        <div style="margin-bottom:8px;"><strong style="color:var(--gold);">⚠ 高息卫星ETF存在结构性NAV衰减风险：</strong></div>
+        <div>• 备兑期权策略（Covered Call）牺牲上涨空间换取当期权利金，牛市中大幅跑输底层资产</div>
+        <div>• QDTE/NVDY的ROC占比高达 80%~93%，意味着每月分红中绝大部分是"退还本金"</div>
+        <div>• <strong>本模拟已启用DRIP重定向</strong>：高息ETF分红不复投自身，而是灌入SCHG核心资产，降低NAV衰减对总回报的侵蚀</div>
+        <div style="margin-top:6px;"><strong style="color:var(--green);">✓ 优化策略：</strong>以高息卫星"养"核心多头 → 既享现金流，又保长期购买力</div>
+      </div>
+    </div>
+  `;
+  let dripPanelEl = document.getElementById('dripStrategyPanel');
+  if (!dripPanelEl) {
+    dripPanelEl = document.createElement('div');
+    dripPanelEl.id = 'dripStrategyPanel';
+    tableEl.parentNode.insertBefore(dripPanelEl, tableEl.nextSibling);
+  }
+  dripPanelEl.innerHTML = dripPanelHtml;
 
   // 触发数字动画
   animateSummaryCards(last, monthlyInvest);
