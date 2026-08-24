@@ -77,11 +77,11 @@ _last_send_time = None    # 最后一次发送时间 (datetime)  # 跨线程共�
 _start_time = time.time() # 服务器启动时间
 
 STOCKS = {
-    'SCHG': {'secid': '107.SCHG', 'sina': 'gb_schg', 'name': 'Schwab US Large-Cap Growth ETF', 'allocation': 47},
-    'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'Simplify Volatility Premium ETF', 'allocation': 9},
+    'SCHG': {'secid': '107.SCHG', 'sina': 'gb_schg', 'name': 'Schwab US Large-Cap Growth ETF', 'allocation': 60},
+    'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'Simplify Volatility Premium ETF', 'allocation': 10},
     'XQQI': {'secid': '105.XQQI', 'sina': 'gb_xqqi', 'name': 'NEOS Nasdaq-100 High Income ETF', 'allocation': 10},
-    'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF', 'allocation': 28},
-    'NVDY': {'secid': '107.NVDY', 'sina': 'gb_nvdy', 'name': 'YieldMax NVDA Option Income ETF', 'allocation': 6},
+    'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF', 'allocation': 15},
+    'NVDY': {'secid': '107.NVDY', 'sina': 'gb_nvdy', 'name': 'YieldMax NVDA Option Income ETF', 'allocation': 5},
 }
 
 # 月定投策略配置（复星账户执行）
@@ -91,7 +91,7 @@ DCA_FIXED_SHARES = []  # 不再有固定买入
 DCA_REST_TICKERS = ['SCHG', 'SPYM', 'XQQI', 'QDTE', 'NVDY']
 
 # 默认持仓（如果服务器端没有同步过，用这些）
-DEFAULT_HOLDINGS = {'SCHG': 0, 'SPYM': 0, 'XQQI': 0, 'QDTE': 0, 'NVDY': 0}
+DEFAULT_HOLDINGS = {'SCHG': 14, 'SPYM': 1, 'XQQI': 2, 'QDTE': 10, 'NVDY': 5}
 
 # 派息信息（用于报表生成）
 # 注意：部分分红属本金返还(ROC)，真实经济收益需扣除 ROC 后计算
