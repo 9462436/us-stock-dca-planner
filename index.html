@@ -4195,7 +4195,7 @@ function renderEntryTiming() {
         <div class="timing-score-fill" style="width:${pct}%;background:${scoreColor}"></div>
         <div class="timing-score-num">${s.score.toFixed(1)}</div>
       </div>
-      <span class="timing-signal" style="background:${s.signalBg};color:${s.signalColor}">${s.signal}</span>
+      <span class="timing-signal" style="background:${s.signalBg};color:${s.signalColor}">${s.signal} <span style="font-weight:500;opacity:0.85;">${s.price > 0 ? (Math.round(s.suggestRMB / s.price * 100) / 100).toFixed(1) + '股' : ''}</span></span>
       <div class="timing-amount" style="background:${s.suggestBg};color:${s.suggestColor}">¥${Math.round(s.suggestRMB)}</div>
     </div>`;
   }).join('');
