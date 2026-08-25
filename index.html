@@ -3388,7 +3388,8 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 //   XQQI  起价 $50.00  现价 $50.22  价格CAGR +0.82%   现价分红率 11.7%
 //   QDTE  起价 $50.00  现价 $29.83  价格CAGR -19%     现价分红率 44.2%  (0DTE策略天然cap上涨)
 //   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.2%   现价分红率 53.5%  (扣除分红后NAV价格约-2%)
-// 注意：高息ETF价格回报为保守估计（-3%/-2%），反映0DTE/备兑策略的结构性涨幅上限
+//   SCHD  起价 $50.00  现价 $78.50  价格CAGR +10.0%   现价分红率 3.5%   (红利成长+质量因子)
+// 温和回归假设：SCHG 10% / SCHD 8% / SPYM 4% / XQQI 0.8% / QDTE -3% / NVDY -2%
 const stockConfigs = [
   // dripEnabled: 是否对该ETF开启股息再投资(DRIP)
   //   true  = 股息自动买入本ETF（默认行为）
@@ -3397,13 +3398,24 @@ const stockConfigs = [
   {
     ticker: 'SCHG', name: 'Schwab US Large-Cap Growth ETF',
     divPerShare: 0.18, divFreq: 'quarterly',
-    erosionRate: 0, allocation: 60,
+    erosionRate: 0, allocation: 40,
     sustainableYield: 0.005,
     rocRatio: 0.0,
-    expectedPriceReturn: 0.13,
+    expectedPriceReturn: 0.10,
     annualVol: 0.20,
     dripEnabled: true,
     color: '#10b981', colorClass: 'c-schg'
+  },
+  {
+    ticker: 'SCHD', name: 'Schwab US Dividend Equity ETF',
+    divPerShare: 0.68, divFreq: 'quarterly',
+    erosionRate: 0, allocation: 20,
+    sustainableYield: 0.035,
+    rocRatio: 0.0,
+    expectedPriceReturn: 0.08,
+    annualVol: 0.15,
+    dripEnabled: true,
+    color: '#059669', colorClass: 'c-schd'
   },
   {
     ticker: 'SPYM', name: 'Simplify Volatility Premium ETF',
@@ -3411,7 +3423,7 @@ const stockConfigs = [
     erosionRate: 3, allocation: 10,
     sustainableYield: 0.08,
     rocRatio: 0.0,
-    expectedPriceReturn: 0.05,
+    expectedPriceReturn: 0.04,
     annualVol: 0.12,
     dripEnabled: true,
     color: '#06b6d4', colorClass: 'c-spym'
@@ -3430,7 +3442,7 @@ const stockConfigs = [
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
     divPerShare: 0.20, divFreq: 'weekly',
-    erosionRate: 0, allocation: 15,
+    erosionRate: 0, allocation: 10,
     sustainableYield: 0.442,
     rocRatio: 0.80,
     expectedPriceReturn: -0.03, // 0DTE策略天然cap上涨，实测2.5年价格-41%，保守估计年化-3%
@@ -3454,6 +3466,7 @@ const stockConfigs = [
 // Fallback prices from latest Finnhub API call (will be overwritten if API succeeds)
 const fallbackQuotes = {
   'SCHG': { c: 35.10, d: -1.02, dp: -2.82, h: 35.40, l: 35.06, pc: 36.12, t: Date.now()/1000|0 },
+  'SCHD': { c: 78.50, d: -0.45, dp: -0.57, h: 79.00, l: 78.00, pc: 78.95, t: Date.now()/1000|0 },
   'SPYM': { c: 91.56, d: 0.45, dp: 0.50, h: 91.80, l: 90.90, pc: 91.11, t: Date.now()/1000|0 },
   'XQQI': { c: 50.22, d: 0.995, dp: 2.098, h: 50.46, l: 48.1762, pc: 49.225, t: Date.now()/1000|0 },
   'QDTE': { c: 29.83, d: 0.27, dp: 0.94, h: 29.95, l: 29.45, pc: 29.56, t: Date.now()/1000|0 },

@@ -77,10 +77,11 @@ _last_send_time = None    # 最后一次发送时间 (datetime)  # 跨线程共�
 _start_time = time.time() # 服务器启动时间
 
 STOCKS = {
-    'SCHG': {'secid': '107.SCHG', 'sina': 'gb_schg', 'name': 'Schwab US Large-Cap Growth ETF', 'allocation': 60},
+    'SCHG': {'secid': '107.SCHG', 'sina': 'gb_schg', 'name': 'Schwab US Large-Cap Growth ETF', 'allocation': 40},
+    'SCHD': {'secid': '107.SCHD', 'sina': 'gb_schd', 'name': 'Schwab US Dividend Equity ETF', 'allocation': 20},
     'SPYM': {'secid': '107.SPYM', 'sina': 'gb_spym', 'name': 'Simplify Volatility Premium ETF', 'allocation': 10},
     'XQQI': {'secid': '105.XQQI', 'sina': 'gb_xqqi', 'name': 'NEOS Nasdaq-100 High Income ETF', 'allocation': 10},
-    'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF', 'allocation': 15},
+    'QDTE': {'secid': '107.QDTE', 'sina': 'gb_qdte', 'name': 'Roundhill 0DTE Covered Call ETF', 'allocation': 10},
     'NVDY': {'secid': '107.NVDY', 'sina': 'gb_nvdy', 'name': 'YieldMax NVDA Option Income ETF', 'allocation': 5},
 }
 
@@ -88,10 +89,10 @@ STOCKS = {
 # 所有标的按 allocation 权重碎股买入，无固定股数
 DCA_MONTHLY_RMB = float(os.environ.get('MONTHLY_INVEST_RMB', '7000'))
 DCA_FIXED_SHARES = []  # 不再有固定买入
-DCA_REST_TICKERS = ['SCHG', 'SPYM', 'XQQI', 'QDTE', 'NVDY']
+DCA_REST_TICKERS = ['SCHG', 'SCHD', 'SPYM', 'XQQI', 'QDTE', 'NVDY']
 
 # 默认持仓（如果服务器端没有同步过，用这些）
-DEFAULT_HOLDINGS = {'SCHG': 14, 'SPYM': 1, 'XQQI': 2, 'QDTE': 10, 'NVDY': 5}
+DEFAULT_HOLDINGS = {'SCHG': 14, 'SCHD': 6, 'SPYM': 1, 'XQQI': 2, 'QDTE': 10, 'NVDY': 5}
 
 # 派息信息（用于报表生成）
 # 注意：部分分红属本金返还(ROC)，真实经济收益需扣除 ROC 后计算
@@ -99,6 +100,7 @@ DEFAULT_HOLDINGS = {'SCHG': 14, 'SPYM': 1, 'XQQI': 2, 'QDTE': 10, 'NVDY': 5}
 #   rocRatio = 分红中本金返还占比
 DIV_INFO = {
     'SCHG':  {'div': 0.18, 'freq': 'quarterly', 'rocRatio': 0.0,  'secYield': 0.005},
+    'SCHD':  {'div': 0.68, 'freq': 'quarterly', 'rocRatio': 0.0,  'secYield': 0.035},
     'SPYM':  {'div': 1.85, 'freq': 'monthly',  'rocRatio': 0.0,  'secYield': 0.08},
     'XQQI':  {'div': 0.82, 'freq': 'monthly',  'rocRatio': 0.10, 'secYield': 0.117},
     'QDTE':  {'div': 0.60, 'freq': 'monthly',  'rocRatio': 0.80, 'secYield': 0.442},
