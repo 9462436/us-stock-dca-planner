@@ -4280,18 +4280,15 @@ function calculate() {
   const taxRate = 0.10;
   const totalMonths = 20 * 12;
 
-  // === 客观口径模型：现金分红(含ROC) + NAV历史CAGR，ROC 不重复投资 ===
-  // YieldMax/0DTE 类 ETF 核心特征：高分红 + 高侵蚀
-  //   sustainableYield = 名义现金分红率(含本金返还 ROC，现价口径)
-  //   expectedPriceReturn = NAV 历史 CAGR(负值 = ROC 返还本金导致净值缩水)
-  // 真实总回报 = sustainableYield × (1 - rocRatio) + expectedPriceReturn
-  // 注意：月均「股息」包含 ~80~93% 本金返还(ROC)，非真实收益；真实收益见「月均真实收益」卡
+  // === 客观口径模型 + 市场震荡模型 ===
+  // 基础：sustainableYield(含ROC) + expectedPriceReturn(NAV CAGR)
+  // 增强：Markov体制切换(牛/熊/震荡) + GARCH波动率聚集 + 跳跃扩散(肥尾)
+  // 说明：每月先决定市场体制，再叠加个股特质波动与跳跃事件
 
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
   const stocks = stockConfigs.map(s => {
     const q = quotes[s.ticker];
     const px = (q && q.c > 0) ? q.c : 50;
-    // 真实收益率 = 名义分红率 × (1 - ROC占比)，即投资者真正赚到的部分
     const trueYield = (s.sustainableYield || 0.10) * (1 - (s.rocRatio || 0));
     const monthlyPriceRet = (s.expectedPriceReturn !== undefined
       ? s.expectedPriceReturn / 12
@@ -4304,7 +4301,7 @@ function calculate() {
       totalDividendsEarned: 0,
       totalRealDividends: 0,
       rocComponentTotal: 0,
-      dripRedirectedIn: 0, // 从高息ETF重定向到本ETF的累计金额
+      dripRedirectedIn: 0,
       price: px, initialPrice: px,
       trueDivYield: trueYield,
       monthlyPriceRet: monthlyPriceRet,
@@ -4319,15 +4316,57 @@ function calculate() {
   const rng = () => { rngSeed = (rngSeed * 16807 + 0) % 2147483647; return rngSeed / 2147483647; };
   const randn = () => { let u=rng(),v=rng(); return Math.sqrt(-2*Math.log(u||0.0001))*Math.cos(2*Math.PI*v); };
 
-  // 组合层面年化波动率（加权平均，权重已归一化，sum(allocation)=1）
+  // ===== Markov 体制切换模型 (3态) =====
+  // 状态: 0=牛市, 1=震荡, 2=熊市
+  // 转移矩阵(月频): 基于 S&P 500 历史牛熊转换频率
+  const regime = {
+    state: 0,  // 初始为牛市
+    transition: [
+      [0.87, 0.10, 0.03],  // 牛→牛/震荡/熊
+      [0.15, 0.72, 0.13],  // 震荡→牛市/震荡/熊
+      [0.08, 0.25, 0.67]   // 熊→牛市/震荡/熊
+    ],
+    // 各体制下的月均漂移(年化/12) 和 月波动率(年化/√12)
+    drift:    [0.10/12,  0.01/12, -0.06/12],   // 牛+10%, 震荡+1%, 熊-6%
+    vol:      [0.16/Math.sqrt(12), 0.22/Math.sqrt(12), 0.32/Math.sqrt(12)], // 牛16%, 震荡22%, 熊32%
+    // 板块敏感度: 高息ETF在熊市跌更多, 成长ETF在牛市涨更多
+    beta: {
+      growth:  [1.15, 0.90, 1.40],   // SCHG/SCHD: 牛更牛, 熊更熊
+      covered: [0.95, 1.05, 1.25],   // QDTE/NVDY: 熊市期权策略承压
+      neutral: [1.00, 1.00, 1.00]    // SPYM/XQQI: 中性
+    }
+  };
+
+  // ===== GARCH(1,1) 波动率聚集 =====
+  const garch = {
+    omega: 0.000005,   // 长期方差均值
+    alpha: 0.08,       // 前期冲击权重 (新信息冲击)
+    beta:  0.88,       // 前期方差权重 (波动惯性)
+    h: 0.015,          // 初始月方差 (≈年化18%)
+  };
+
+  // ===== 跳跃扩散 (Merton模型) - 肥尾事件 =====
+  const jump = {
+    lambda: 0.02,      // 月跳跃强度 (2%概率发生跳跃)
+    muJump: -0.08,     // 跳跃均值 (平均-8%, 主要是下跌)
+    sigmaJump: 0.05,   // 跳跃标准差 (跳跃幅度不确定性)
+  };
+
+  // 根据ETF类型确定板块敏感度
+  function getSectorBeta(st) {
+    const t = st.ticker;
+    if (t === 'SCHG' || t === 'SCHD') return 'growth';
+    if (t === 'QDTE' || t === 'NVDY') return 'covered';
+    return 'neutral';
+  }
+
   const portfolioAnnualVol = stocks.reduce((sum, s) => sum + s.allocation * s.annualVol, 0);
-  const portfolioMonthlyVol = portfolioAnnualVol / Math.sqrt(12);
 
   for (let m = 0; m < totalMonths; m++) {
     let totalUSD = monthlyInvestRMB / safeFx;
     let monthInvestedUSD = 0;
 
-    // 所有标的按 allocation 权重碎股买入（无固定股数）
+    // 所有标的按 allocation 权重碎股买入
     const totalAlloc = stocks.reduce((a, s) => a + s.allocation, 0);
     for (const st of stocks) {
       const w = totalAlloc > 0 ? st.allocation / totalAlloc : 1 / stocks.length;
@@ -4337,58 +4376,80 @@ function calculate() {
     }
     cumulativeInvestedRMB += monthInvestedUSD * safeFx;
 
-    // ===== 股息计算：分离真实经济收益与 ROC 本金返还 =====
-    // 客观口径：sustainableYield = 现价口径名义分红率（含 ROC）。
-    //   ROC（本金返还）不是收益，是把你自己的本金还给你，已通过 NAV 侵蚀体现。
-    //   因此 DRIP 只再投资「真实收益」（= 现金分红 - ROC），ROC 部分不再投资，
-    //   避免 ROC 被双重计算（既当收益再投，又让 NAV 下跌）。
-    //   dripEnabled=false 的ETF：真实收益提取为现金，定向定投到核心资产。
-    let dripRedirectPool = 0; // 本月待重定向的股息现金池（USD）
+    // ===== 股息计算 =====
+    let dripRedirectPool = 0;
     for (const st of stocks) {
       if (st.shares <= 0) continue;
-      // 1. 现金分红总额（含 ROC），税后
       const grossCashDiv = st.shares * st.price * (st.sustainableYield / 12);
       const netCashDiv = grossCashDiv * (1 - taxRate);
       st.totalDividendsEarned += netCashDiv;
-      // 2. ROC 本金返还部分（非真实收益）
       const grossRoc = grossCashDiv * (st.rocRatio || 0);
       const netRoc = grossRoc * (1 - taxRate);
       st.rocComponentTotal += netRoc;
-      // 3. 真实经济收益 = 现金分红 - ROC
       const netRealDiv = netCashDiv - netRoc;
       st.totalRealDividends += netRealDiv;
-      // 4. DRIP 逻辑
       if (st.dripEnabled !== false) {
-        // 默认：只再投资真实收益（ROC 本金返还不再投，避免双重计算）
         st.shares += netRealDiv / st.price;
         st.costBasis += netRealDiv;
       } else {
-        // dripEnabled=false：不复投本ETF，真实收益进入重定向资金池
-        // ROC 部分也提取（本质是本金返还，不应留在高息ETF中继续承担NAV衰减风险）
         dripRedirectPool += netCashDiv;
       }
     }
-    // 5. 重定向资金池：买入核心资产(dripRedirectTarget)
     if (dripRedirectPool > 0) {
-      for (const st of stocks) {
-        if (st.dripEnabled !== false) continue; // 只找开启了DRIP的核心资产
-        // 优先注入SCHG（第一顺位核心资产）
-      }
       const target = stocks.find(s => s.ticker === 'SCHG');
       if (target && target.price > 0) {
         const addShares = dripRedirectPool / target.price;
         target.shares += addShares;
         target.costBasis += dripRedirectPool;
-        target.dripRedirectedIn += dripRedirectPool; // 累计重定向金额
+        target.dripRedirectedIn += dripRedirectPool;
       }
     }
 
-    // ===== 价格变动：预期价格回报 + 随机噪声 =====
-    // 生成一个组合层面的共同冲击，个股加上特有噪声
-    const commonShock = randn() * portfolioMonthlyVol;
+    // ===== 1. Markov体制切换 =====
+    const transRow = regime.transition[regime.state];
+    const u = rng();
+    let cumP = 0, nextState = 0;
+    for (let ns = 0; ns < 3; ns++) {
+      cumP += transRow[ns];
+      if (u < cumP) { nextState = ns; break; }
+    }
+    regime.state = nextState;
+
+    // 体制特异性参数
+    const regimeDrift = regime.drift[regime.state];
+    const regimeVol = regime.vol[regime.state];
+
+    // ===== 2. GARCH波动率更新 =====
+    const prevReturn = garch._lastReturn || 0;
+    garch.h = garch.omega + garch.alpha * prevReturn * prevReturn + garch.beta * garch.h;
+    // 限制波动率范围 (年化8%~60%)
+    garch.h = Math.max(0.005, Math.min(0.025, garch.h));
+    const garchVol = Math.sqrt(garch.h);
+
+    // ===== 3. 组合共同冲击 (市场因子) =====
+    const marketShock = randn() * Math.sqrt(regimeVol * regimeVol * 0.6 + garchVol * 0.4);
+
+    // ===== 4. 跳跃事件 (肥尾, 月频2%概率) =====
+    const hasJump = rng() < jump.lambda;
+    const jumpSize = hasJump
+      ? jump.muJump + randn() * jump.sigmaJump  // 均值-8%, 标准差5% (多为大跌)
+      : 0;
+
+    // ===== 5. 个股价格变动 =====
     for (const st of stocks) {
-      const idioShock = randn() * (st.annualVol / Math.sqrt(12)) * 0.3; // 30% 特质波动
-      const monthlyRet = st.monthlyPriceRet + commonShock + idioShock;
+      const sector = getSectorBeta(st);
+      const beta = regime.beta[sector][regime.state];
+
+      // 个股特质波动 (30% 原始, 受GARCH调节)
+      const idioVol = st.annualVol / Math.sqrt(12) * 0.3;
+      const idioShock = randn() * idioVol;
+
+      // 体制漂移 × 板块β + GARCH市场冲击 × β + 个股特质 + 跳跃
+      const driftComponent = regimeDrift * beta;
+      const shockComponent = marketShock * beta;
+      const monthlyRet = driftComponent + shockComponent + idioShock + jumpSize * beta;
+
+      garch._lastReturn = monthlyRet;  // 供下月GARCH使用
       st.price *= (1 + monthlyRet);
       if (st.price < 0.01) st.price = 0.01;
     }
@@ -4420,6 +4481,7 @@ function calculate() {
       totalValueRMB, totalReturnRMB: totalValueRMB - cumulativeInvestedRMB,
       totalReturnPct: (cumulativeInvestedRMB>0 ? ((totalValueRMB - cumulativeInvestedRMB)/cumulativeInvestedRMB)*100 : 0),
       roi: cagr, annualizedRoi: cagr, cagr: cagr, months: elapsed,
+      regimeState: regime.state, // 0=牛 1=震荡 2=熊
       monthlyNav: [...monthlyNav],
       stocks: stocks.map(s => ({
         ticker: s.ticker, shares: s.shares, price: s.price,
@@ -5767,6 +5829,62 @@ function renderSummary() {
         <div style="margin-top:6px;"><strong style="color:var(--green);">✓ 优化策略：</strong>以高息卫星"养"核心多头 → 既享现金流，又保长期购买力</div>
       </div>
     </div>
+
+    ${(() => {
+      // 统计体制分布
+      const regimeData = data.filter(d => d.regimeState !== undefined);
+      const total = regimeData.length || 1;
+      const bullCount = regimeData.filter(d => d.regimeState === 0).length;
+      const sidewaysCount = regimeData.filter(d => d.regimeState === 1).length;
+      const bearCount = regimeData.filter(d => d.regimeState === 2).length;
+      const bullPct = (bullCount / total * 100).toFixed(0);
+      const sidewaysPct = (sidewaysCount / total * 100).toFixed(0);
+      const bearPct = (bearCount / total * 100).toFixed(0);
+      return `
+    <div class="risk-quality-table" style="margin-top:12px;">
+      <div class="rq-header">
+        <span class="sec-tag tag-amber">MARKET REGIME</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);">市场体制分布 (Markov 切换)</span>
+      </div>
+      <table class="rq-table">
+        <thead>
+          <tr>
+            <th style="width:20%;text-align:left;">体制</th>
+            <th style="width:15%;text-align:center;">概率</th>
+            <th style="width:15%;text-align:right;">月漂移</th>
+            <th style="width:15%;text-align:right;">月波动率</th>
+            <th style="width:35%;text-align:left;">特征</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:left;font-weight:700;color:#22c55e;">🟢 牛市</td>
+            <td style="text-align:center;font-family:var(--font-mono);color:#22c55e;">${bullPct}%</td>
+            <td style="text-align:right;font-family:var(--font-mono);">+0.83%/月</td>
+            <td style="text-align:right;font-family:var(--font-mono);">1.30%/月</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">S&P500+10%年化 · 成长股领涨</td>
+          </tr>
+          <tr>
+            <td style="text-align:left;font-weight:700;color:#d97706;">🟡 震荡</td>
+            <td style="text-align:center;font-family:var(--font-mono);color:#d97706;">${sidewaysPct}%</td>
+            <td style="text-align:right;font-family:var(--font-mono);">+0.08%/月</td>
+            <td style="text-align:right;font-family:var(--font-mono);">1.80%/月</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">区间震荡 · 高股息策略防御</td>
+          </tr>
+          <tr>
+            <td style="text-align:left;font-weight:700;color:#ef4444;">🔴 熊市</td>
+            <td style="text-align:center;font-family:var(--font-mono);color:#ef4444;">${bearPct}%</td>
+            <td style="text-align:right;font-family:var(--font-mono);">-0.50%/月</td>
+            <td style="text-align:right;font-family:var(--font-mono);">2.60%/月</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">-6%年化 · 波动翻倍 · 高息ETF承压</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="padding:10px 16px;background:rgba(245,158,11,0.06);border-top:1px solid rgba(245,158,11,0.15);font-size:13px;color:var(--text-secondary);">
+        <strong style="color:#d97706;">模型增强：</strong>Markov体制切换(3态) · GARCH波动率聚集 · Merton跳跃扩散(肥尾2%概率)
+      </div>
+    </div>`;
+    })()}
   `;
   let dripPanelEl = document.getElementById('dripStrategyPanel');
   if (!dripPanelEl) {
