@@ -3061,10 +3061,6 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
       <h3>
         <span class="sec-tag tag-cyan">MONTE CARLO</span> 价格预测引擎 · 蒙特卡洛模拟
         <span class="mc-controls">
-          <label class="mc-vol">波动率
-            <input type="range" id="mcVolatility" min="5" max="40" value="15" step="1">
-            <span id="mcVolLabel">15%</span>
-          </label>
           <label class="mc-sim">模拟次数
             <select id="mcCount">
               <option value="100">100</option>
@@ -5311,14 +5307,38 @@ function runMonteCarlo() {
   const safeFx = (Number.isFinite(fxRate) && fxRate > 0) ? fxRate : 6.75;
   const years = currentYear;
   const months = years * 12;
-  const vol = (parseFloat(document.getElementById('mcVolatility')?.value) || 15) / 100;
   const count = parseInt(document.getElementById('mcCount')?.value || 1000);
-  const monthlyVol = vol / Math.sqrt(12); // 月波动率
-  const expectedReturn = 0.05; // 假设长期年化 5%（保守估计，考虑高 ROC 侵蚀）
-  const monthlyDrift = (expectedReturn - vol * vol / 2) / 12; // 漂移项
 
-  // 基准情景（实际走势）
+  // 基准情景（主模拟实际走势）
   const baseline = data.map(d => d.totalValueRMB);
+
+  // 与主模拟一致的 Markov 体制切换 + GARCH + 跳跃扩散参数
+  const mcRegimeTrans = [
+    [0.87, 0.10, 0.03],
+    [0.15, 0.72, 0.13],
+    [0.08, 0.25, 0.67]
+  ];
+  const mcRegimeDrift = [0.10/12, 0.01/12, -0.06/12];
+  const mcRegimeVol = [0.16/Math.sqrt(12), 0.22/Math.sqrt(12), 0.32/Math.sqrt(12)];
+  const mcGarchOmega = 0.000005, mcGarchAlpha = 0.08, mcGarchBeta = 0.88;
+  const mcJumpLambda = 0.02, mcJumpMu = -0.08, mcJumpSigma = 0.05;
+
+  // 各ETF配置（加权平均参数用于组合层面MC）
+  const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
+  const normStocks = stockConfigs.map(s => ({
+    ticker: s.ticker,
+    w: totalAlloc > 0 ? s.allocation / totalAlloc : 1/stockConfigs.length,
+    vol: s.annualVol || 0.25,
+    sector: (s.ticker === 'SCHG' || s.ticker === 'SCHD') ? 0 : (s.ticker === 'QDTE' || s.ticker === 'NVDY') ? 1 : 2
+  }));
+  const sectorBeta = [
+    [1.15, 0.90, 1.40],
+    [0.95, 1.05, 1.25],
+    [1.00, 1.00, 1.00]
+  ];
+
+  // 组合年化波动率（加权）
+  const portVol = normStocks.reduce((s, st) => s + st.w * st.vol, 0);
 
   // 蒙特卡洛路径
   const allPaths = [];
@@ -5326,17 +5346,48 @@ function runMonteCarlo() {
   const drawdowns = [];
   for (let i = 0; i < count; i++) {
     const path = [];
-    let val = monthlyInvest * safeFx; // 首月投入
+    let val = monthlyInvest * safeFx;
     let invested = 0;
     let peak = val;
     let maxDD = 0;
+    let regimeState = 0;
+    let garchH = 0.015;
+    let lastRet = 0;
+
     for (let m = 0; m < months; m++) {
-      // 每月新增投入
-      val += monthlyInvest * safeFx * 0.95; // 95%用于购买(扣除手续费)
+      val += monthlyInvest * safeFx * 0.95;
       invested += monthlyInvest * safeFx;
-      // 几何布朗运动
-      const z = gaussianRand();
-      val *= Math.exp(monthlyDrift + monthlyVol * z);
+
+      // Markov 体制切换
+      const row = mcRegimeTrans[regimeState];
+      const u = Math.random();
+      let cum = 0;
+      for (let ns = 0; ns < 3; ns++) {
+        cum += row[ns];
+        if (u < cum) { regimeState = ns; break; }
+      }
+      const rDrift = mcRegimeDrift[regimeState];
+      const rVol = mcRegimeVol[regimeState];
+
+      // GARCH 更新
+      garchH = mcGarchOmega + mcGarchAlpha * lastRet * lastRet + mcGarchBeta * garchH;
+      garchH = Math.max(0.005, Math.min(0.025, garchH));
+
+      // 市场共同冲击
+      const gaussRand = () => { let u = Math.random(), v = Math.random(); return Math.sqrt(-2*Math.log(u||0.0001))*Math.cos(2*Math.PI*v); };
+      const commonShock = gaussRand() * Math.sqrt(rVol * rVol * 0.6 + garchH * 0.4);
+
+      // 跳跃事件
+      const hasJump = Math.random() < mcJumpLambda;
+      const jumpSize = hasJump ? mcJumpMu + gaussRand() * mcJumpSigma : 0;
+
+      // 组合回报：体制漂移 + 共同冲击 + 特质波动 + 跳跃
+      const idioShock = gaussRand() * portVol / Math.sqrt(12) * 0.3;
+      const monthlyRet = rDrift + commonShock + idioShock + jumpSize;
+      lastRet = monthlyRet;
+
+      val *= (1 + monthlyRet);
+      if (val < 0) val = 0;
       if (val > peak) peak = val;
       const dd = (peak - val) / peak;
       if (dd > maxDD) maxDD = dd;
@@ -5383,7 +5434,7 @@ function runMonteCarlo() {
   monteCarloResult = { allPaths, pData, samples, baseline, finalValues, drawdowns, totalInvested };
 
   renderMonteCarloChart({ pData, samples, baseline, totalInvested });
-  renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, worstDD, count, vol, years });
+  renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, worstDD, count, vol: portVol, years });
 }
 
 async function renderMonteCarloChart({ pData, samples, baseline, totalInvested }) {
@@ -5547,7 +5598,7 @@ function renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, 
     <div class="mc-stat">
       <div class="mc-stat-lbl">模拟期限</div>
       <div class="mc-stat-val">${years} 年</div>
-      <div class="mc-stat-note">${years * 12} 个月 · 几何布朗运动</div>
+      <div class="mc-stat-note">${years * 12} 个月 · Markov+GARCH+跳跃扩散</div>
     </div>
   `;
 }
@@ -7020,13 +7071,6 @@ window.addEventListener('themeChanged', applyChartTheme);
 
   // Bind Monte Carlo controls
   const mcRunBtn = document.getElementById('mcRunBtn');
-  const mcVolInput = document.getElementById('mcVolatility');
-  const mcVolLabel = document.getElementById('mcVolLabel');
-  if (mcVolInput && mcVolLabel) {
-    mcVolInput.addEventListener('input', (e) => {
-      mcVolLabel.textContent = e.target.value + '%';
-    });
-  }
   if (mcRunBtn) {
     mcRunBtn.addEventListener('click', () => {
       if (projectionData && projectionData.length > 0) {
