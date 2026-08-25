@@ -5539,49 +5539,11 @@ function renderSummary() {
   const totalRedirectedRMB = schgStock ? schgStock.dripRedirectedInRMB : 0;
   const totalRedirectedWan = totalRedirectedRMB / 10000;
 
-  // ---------- 7. 水下图数据（用于下方图表） ----------
-  const drawdownCurve = navCurve.map((v, i) => {
-    const peak = Math.max(...navCurve.slice(0, i+1));
-    return peak > 0 ? ((peak - v) / peak) * 100 : 0;
-  });
-
-  document.getElementById('summaryGrid').innerHTML = `
-    <div class="summary-card c-blue">
-      <div class="label">${yearLabel}累计投入</div>
-      <div class="value">¥${(last.investedRMB / 10000).toFixed(1)}万</div>
-      <div class="sub">${totalMonths} 月 × ¥${monthlyInvest}</div>
-    </div>
-    <div class="summary-card c-purple">
-      <div class="label">${yearLabel}组合市值</div>
-      <div class="value">¥${(last.portfolioValueRMB / 10000).toFixed(1)}万</div>
-      <div class="sub">持仓市值</div>
-    </div>
-    <div class="summary-card c-green">
-      <div class="label">${yearLabel}累计股息 (税后)</div>
-      <div class="value">¥${(last.cumulativeDividendsRMB / 10000).toFixed(1)}万</div>
-      <div class="sub">覆盖 ${coveredMonths.toFixed(0)} 个月定投</div>
-    </div>
-    <div class="summary-card c-gold">
-      <div class="label">${yearLabel}总收益 (含股息)</div>
-      <div class="value">¥${(last.totalReturnRMB / 10000).toFixed(1)}万</div>
-      <div class="sub">CAGR ${(last.cagr||cagr).toFixed(1)}% · 股息再投资 · 长期可持续参数模拟</div>
-    </div>
-    ${totalRedirectedWan > 0.01 ? `
-    <div class="summary-card c-cyan" style="border-left:3px solid #06b6d4">
-      <div class="label">DRIP 重定向 → SCHG</div>
-      <div class="value">¥${totalRedirectedWan.toFixed(1)}万</div>
-      <div class="sub">QDTE/NVDY分红灌入核心 · 避免高息ETF NAV衰减</div>
-    </div>` : ''}
-  `;
-
-  // ---------- 盈亏状态卡片（基于"组合市值 vs 累计投入"的回报率）----------
-  // 注意：这是模拟场景下的"账面"回报率，与实盘持仓的"成本均价"不同。
-  // 阈值设计参考行业 DCA 心理承受线：-10% 关注 / -20% 加码 / -30% 严重
+  // ---------- 盈亏状态 ----------
   const totalReturnPct = last.investedRMB > 0
     ? ((last.totalValueRMB - last.investedRMB) / last.investedRMB) * 100
     : 0;
-  const unrealizedAbsRMB = last.totalValueRMB - last.investedRMB;  // 正数=赚，负数=亏
-  // 盈亏信号分级
+  const unrealizedAbsRMB = last.totalValueRMB - last.investedRMB;
   let lossLevel, lossColor, lossBg, lossIcon, lossTip, cardTitle;
   if (totalReturnPct >= 0) {
     lossLevel = '盈利中'; lossColor = 'var(--green)'; lossBg = 'rgba(5,150,105,0.08)'; lossIcon = '✓';
@@ -5593,38 +5555,82 @@ function renderSummary() {
     cardTitle = yearLabel + '浮亏预警';
   } else if (totalReturnPct >= -20) {
     lossLevel = '关注'; lossColor = 'var(--gold)'; lossBg = 'rgba(217,119,6,0.10)'; lossIcon = '!';
-    lossTip = '跌幅 >10% · 检查 NVDY 占比，考虑加码强势标的 (SCHG/QDTE)';
+    lossTip = '跌幅 >10% · 检查 NVDY 占比，考虑加码强势标的 (SCHG)';
     cardTitle = yearLabel + '浮亏预警';
   } else if (totalReturnPct >= -30) {
     lossLevel = '警告'; lossColor = '#ea580c'; lossBg = 'rgba(234,88,12,0.10)'; lossIcon = '⚠';
-    lossTip = '跌幅 >20% · 启用强力加码信号 (评分 ≥7.5 时 1.5× 买入)';
+    lossTip = '跌幅 >20% · 启用强力加码信号';
     cardTitle = yearLabel + '浮亏警告';
   } else {
     lossLevel = '严重'; lossColor = 'var(--red)'; lossBg = 'rgba(220,38,38,0.12)'; lossIcon = '✕';
-    lossTip = '跌幅 >30% · 重新评估资产配置，检查是否需要止部分损';
+    lossTip = '跌幅 >30% · 重新评估资产配置';
     cardTitle = yearLabel + '严重浮亏';
   }
-  const lossCardHtml = `
-    <div class="summary-card" style="border:2px solid ${lossColor};border-left:5px solid ${lossColor};background:${lossBg};box-shadow:0 0 0 1px ${lossColor}20, var(--shadow-sm);">
-      <div class="label" style="color:${lossColor};font-weight:800;">
-        <span style="display:inline-block;width:18px;height:18px;text-align:center;line-height:18px;border-radius:50%;background:${lossColor};color:#fff;font-size:15px;font-weight:800;margin-right:6px;">${lossIcon}</span>
-        ${cardTitle}
+
+  // ---------- 7. 水下图数据（用于下方图表） ----------
+  const drawdownCurve = navCurve.map((v, i) => {
+    const peak = Math.max(...navCurve.slice(0, i+1));
+    return peak > 0 ? ((peak - v) / peak) * 100 : 0;
+  });
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="risk-quality-table">
+      <div class="rq-header">
+        <span class="sec-tag tag-blue">PORTFOLIO SUMMARY</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text);">${yearLabel}投资组合总览</span>
       </div>
-      <div class="value" style="color:${lossColor};font-variant-numeric:tabular-nums;">
-        ${totalReturnPct >= 0 ? '+' : ''}${totalReturnPct.toFixed(1)}%
-      </div>
-      <div class="sub" style="color:${lossColor};font-weight:700;">
-        ${lossLevel} · 账面 ${unrealizedAbsRMB >= 0 ? '赚' : '亏'} ¥${Math.abs(unrealizedAbsRMB/10000).toFixed(2)}万
-      </div>
-      <div class="sub" style="margin-top:6px;padding-top:6px;border-top:1px dashed ${lossColor}40;color:var(--text-secondary);font-weight:500;">
-        ${lossTip}
-      </div>
+      <table class="rq-table">
+        <thead>
+          <tr>
+            <th style="width:40%;text-align:left;">项目</th>
+            <th style="width:30%;text-align:right;">金额</th>
+            <th style="width:30%;text-align:left;">说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:rgba(59,130,246,0.04);">
+            <td style="text-align:left;font-weight:700;color:var(--text);">累计投入</td>
+            <td style="text-align:right;font-family:var(--font-mono);font-weight:700;font-size:16px;color:var(--text);">¥${(last.investedRMB / 10000).toFixed(1)}万</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">${totalMonths} 月 × ¥${monthlyInvest}</td>
+          </tr>
+          <tr>
+            <td style="text-align:left;font-weight:700;color:var(--text);">组合市值</td>
+            <td style="text-align:right;font-family:var(--font-mono);font-weight:700;font-size:16px;color:var(--purple);">¥${(last.portfolioValueRMB / 10000).toFixed(1)}万</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">持仓市值</td>
+          </tr>
+          <tr style="background:rgba(16,185,129,0.04);">
+            <td style="text-align:left;font-weight:700;color:var(--text);">累计股息 (税后)</td>
+            <td style="text-align:right;font-family:var(--font-mono);font-weight:700;font-size:16px;color:var(--green);">¥${(last.cumulativeDividendsRMB / 10000).toFixed(1)}万</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">覆盖 ${coveredMonths.toFixed(0)} 个月定投</td>
+          </tr>
+          <tr style="border-top:2px solid var(--border-strong);">
+            <td style="text-align:left;font-weight:800;font-size:15px;color:var(--text);">总收益 (含股息)</td>
+            <td style="text-align:right;font-family:var(--font-mono);font-weight:800;font-size:18px;color:var(--gold);">¥${(last.totalReturnRMB / 10000).toFixed(1)}万</td>
+            <td style="text-align:left;font-weight:700;color:var(--gold);font-size:13px;">CAGR ${(last.cagr||cagr).toFixed(1)}%</td>
+          </tr>
+          ${totalRedirectedWan > 0.01 ? `
+          <tr style="border-top:2px dashed var(--border-strong);">
+            <td style="text-align:left;font-weight:700;color:var(--cyan);">DRIP 重定向 → SCHG</td>
+            <td style="text-align:right;font-family:var(--font-mono);font-weight:700;font-size:16px;color:var(--cyan);">¥${totalRedirectedWan.toFixed(1)}万</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">QDTE/NVDY分红灌入核心 · 避免NAV衰减</td>
+          </tr>` : ''}
+          <tr style="border-top:2px solid var(--border-strong);background:${lossBg};">
+            <td style="text-align:left;font-weight:800;color:${lossColor};">
+              <span style="display:inline-block;width:18px;height:18px;text-align:center;line-height:18px;border-radius:50%;background:${lossColor};color:#fff;font-size:13px;font-weight:800;margin-right:6px;">${lossIcon}</span>
+              ${cardTitle}
+            </td>
+            <td style="text-align:right;font-family:var(--font-mono);font-weight:800;font-size:18px;color:${lossColor};">
+              ${totalReturnPct >= 0 ? '+' : ''}${totalReturnPct.toFixed(1)}%
+            </td>
+            <td style="text-align:left;font-weight:700;color:${lossColor};font-size:13px;">
+              ${lossLevel} · ${unrealizedAbsRMB >= 0 ? '赚' : '亏'} ¥${Math.abs(unrealizedAbsRMB/10000).toFixed(2)}万
+              <span style="display:block;font-weight:500;color:var(--text-secondary);margin-top:2px;">${lossTip}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   `;
-  // 插入到 summaryGrid 末尾
-  const lossEl = document.createElement('div');
-  lossEl.innerHTML = lossCardHtml;
-  document.getElementById('summaryGrid').appendChild(lossEl.firstElementChild);
 
   // ---------- 风险与质量指标表格（取代原先的密集卡片群）----------
   const monthlyDiv = (data.length > 12) ?
