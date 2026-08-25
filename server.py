@@ -900,7 +900,7 @@ def generate_report(holdings=None):
         monthly_div_real += real
     lines.append(f"月均分红(税后): ¥{monthly_div_gross*fx:,.0f}  (含 ROC)")
     lines.append(f"月均真实收益: ¥{monthly_div_real*fx:,.0f}  (扣除 ROC)")
-    lines.append(f"ROC 比例参考: XQQI 10% | NVDY 70% | QDTE 80% | SCHG 0%")
+    lines.append(f"ROC 比例参考: XQQI 10% | SCHD 0% | SPYM 0% | QDTE 80% | NVDY 93% | SCHG 0%")
     lines.append("")
     lines.append("-- 策 · 美股定投助手")
 

@@ -3376,20 +3376,21 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 //   expectedPriceReturn = NAV 历史 CAGR = (现价/起价)^(1/年限) - 1
 //   annualVol = 年化波动率估计（单股 35~45%, 指数 15~20%）
 //   资产结构区分：
-//     - 成长股 ETF（SCHG）：价格驱动，长期 CAGR +13%
-//     - 波动率溢价（SPYM）：稳定收益，CAGR +5%，低波动
+//     - 核心成长（SCHG）：价格驱动，温和回归 +10%
+//     - 红利成长（SCHD）：质量+红利因子，温和回归 +8%
+//     - 波动率溢价（SPYM）：稳定收益，+4%，低波动
 //     - 纳指 100 高收益（XQQI）：ROC 较低(10%)，真实派息稳定
-//     - 指数 0DTE（QDTE）：NAV 跟随指数正漂移，ROC 80%
+//     - 指数 0DTE（QDTE）：0DTE策略天然cap上涨，假设 -3%
 //     - 单股备兑（NVDY）：结构性 NAV 负漂移，ROC 93%，少量配置
 //
 // 实测数据源（截至 2026-08-14）：
-//   SCHG  起价 $26.95  现价 $35.10  价格CAGR +13.0%   现价分红率 0.5%
-//   SPYM  起价 $85.00  现价 $91.56  价格CAGR +5.0%    现价分红率 8.0%
+//   SCHG  起价 $26.95  现价 $35.10  价格CAGR +13.0%   现价分红率 0.5%   (温和回归假设 +10%)
+//   SCHD  起价 $50.00  现价 $78.50  价格CAGR +10.0%   现价分红率 3.5%   (温和回归假设 +8%)
+//   SPYM  起价 $85.00  现价 $91.56  价格CAGR +5.0%    现价分红率 8.0%    (温和回归假设 +4%)
 //   XQQI  起价 $50.00  现价 $50.22  价格CAGR +0.82%   现价分红率 11.7%
-//   QDTE  起价 $50.00  现价 $29.83  价格CAGR -19%     现价分红率 44.2%  (0DTE策略天然cap上涨)
+//   QDTE  起价 $50.00  现价 $29.83  价格CAGR -19%     现价分红率 44.2%  (0DTE策略天然cap上涨，假设 -3%)
 //   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.2%   现价分红率 53.5%  (扣除分红后NAV价格约-2%)
-//   SCHD  起价 $50.00  现价 $78.50  价格CAGR +10.0%   现价分红率 3.5%   (红利成长+质量因子)
-// 温和回归假设：SCHG 10% / SCHD 8% / SPYM 4% / XQQI 0.8% / QDTE -3% / NVDY -2%
+// 温和回归假设：SCHG +10% / SCHD +8% / SPYM +4% / XQQI +0.8% / QDTE -3% / NVDY -2%
 const stockConfigs = [
   // dripEnabled: 是否对该ETF开启股息再投资(DRIP)
   //   true  = 股息自动买入本ETF（默认行为）
@@ -5076,10 +5077,12 @@ function renderLibrary() {
   const grid = document.getElementById('libraryGrid');
   if (!grid || grid.children.length > 0) return;
   const descriptions = {
-    XQQI: 'NEOS Nasdaq-100 High Income ETF，纳斯达克100指数的高收益增强版，主要通过卖出covered call获取月度期权金。',
-    NVDY: 'YieldMax NVDA Option Income ETF，专注英伟达个股的covered call策略，每周派息，收益与NVDA股价波动率挂钩。',
-    QDTE: 'Roundhill 0DTE Covered Call ETF，每日covered call策略，月度派息，追求日内时间价值衰减收益。',
-    SCHG: 'Schwab US Large-Cap Growth ETF，嘉信大盘成长股ETF，跟踪道琼斯美国大盘成长指数，季度派息，长期年化约+13%（无covered call、无ROC）。'
+    SCHG: 'Schwab US Large-Cap Growth ETF，跟踪道琼斯美国大盘成长指数，季度派息，温和回归假设年化+10%（无covered call、无ROC）。',
+    SCHD: 'Schwab US Dividend Equity ETF，红利成长+质量因子，跟踪道琼斯美国红利100指数，季度派息，温和回归假设年化+8%。',
+    SPYM: 'Simplify Volatility Premium ETF，波动率溢价策略，月度派息，温和回归假设年化+4%。',
+    XQQI: 'NEOS Nasdaq-100 High Income ETF，纳指100 covered call增强，月度派息，ROC约10%。',
+    NVDY: 'YieldMax NVDA Option Income ETF，单股英伟达 covered call，每周派息，ROC约93%。',
+    QDTE: 'Roundhill 0DTE Covered Call ETF，每日0DTE covered call，月度派息，ROC约80%。'
   };
   grid.innerHTML = stockConfigs.map(s => {
     // 使用 fallback 价格估算股息率（仅供参考）
