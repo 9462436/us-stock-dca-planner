@@ -4298,15 +4298,28 @@ function getMonthlyDivs(stock) {
 
 function calculate() {
   // XIRR: 定投专用内部收益率 (牛顿法求解)
-  // 现金流: 每月 -monthlyInvestRMB, 末期 +totalValueRMB
+  // 现金流: 每月 -monthlyInvestRMB (期初), 末期 +totalValueRMB
   function computeXIRR(monthlyPMT, months, finalValue) {
-    if (months <= 1) return 0;
-    // 年化率近似: 用年金终值公式 FV = PMT * ((1+r)^n - 1) / r 反解 r
-    // 简化: 用平均投资期限近似
-    const avgYears = (months - 1) / 24; // 首笔投n月,末笔投0月,平均约n/2月
-    const totalInvested = monthlyPMT * months;
-    if (totalInvested <= 0 || finalValue <= 0) return 0;
-    return (Math.pow(finalValue / totalInvested, 1 / avgYears) - 1) * 100;
+    if (months <= 1 || monthlyPMT <= 0 || finalValue <= 0) return 0;
+    // 求解 r: sum_{k=0}^{months-1} -PMT*(1+r)^((months-k)/12) + finalValue = 0
+    // 即: finalValue = PMT * sum_{j=1}^{months} (1+r)^(j/12)
+    // 牛顿法迭代
+    let r = 0.08; // 初始猜测 8%
+    for (let iter = 0; iter < 20; iter++) {
+      let f = -finalValue;
+      let df = 0;
+      for (let j = 1; j <= months; j++) {
+        const t = j / 12;
+        const factor = Math.pow(1 + r, t);
+        f += monthlyPMT * factor;
+        df += monthlyPMT * factor * t / (1 + r);
+      }
+      const newR = r - f / df;
+      if (!isFinite(newR) || newR <= -0.99) { r = 0.08; break; }
+      if (Math.abs(newR - r) < 1e-6) { r = newR; break; }
+      r = newR;
+    }
+    return r * 100;
   }
 
   const monthlyInvestRMB = parseFloat(document.getElementById('monthlyInvest') && document.getElementById('monthlyInvest').value) || 7000;
@@ -5620,10 +5633,27 @@ function renderSummary() {
   const calmarColor = calmar > 1 ? 'var(--green)' : calmar > 0.5 ? 'var(--accent)' : calmar > 0.2 ? 'var(--gold)' : 'var(--red)';
 
   // ---------- 6. 其他指标 ----------
+  // XIRR 复用
+  function xirr(monthlyPMT, months, finalValue) {
+    if (months <= 1 || monthlyPMT <= 0 || finalValue <= 0) return 0;
+    let r = 0.08;
+    for (let iter = 0; iter < 20; iter++) {
+      let f = -finalValue, df = 0;
+      for (let j = 1; j <= months; j++) {
+        const t = j / 12;
+        const factor = Math.pow(1 + r, t);
+        f += monthlyPMT * factor;
+        df += monthlyPMT * factor * t / (1 + r);
+      }
+      const newR = r - f / df;
+      if (!isFinite(newR) || newR <= -0.99) { r = 0.08; break; }
+      if (Math.abs(newR - r) < 1e-6) { r = newR; break; }
+      r = newR;
+    }
+    return r * 100;
+  }
   const coveredMonths = monthlyInvest > 0 ? last.cumulativeDividendsRMB / monthlyInvest : 0;
-  const years = last.month / 12;
-  const avgYears = (last.month - 1) / 24;
-  const cagr = last.investedRMB > 0 ? (Math.pow(last.totalValueRMB / last.investedRMB, 1 / avgYears) - 1) * 100 : 0;
+  const cagr = xirr(monthlyInvest, last.month, last.totalValueRMB);
 
   // ---------- 6b. DRIP 重定向统计 ----------
   const schgStock = last.stocks.find(s => s.ticker === 'SCHG');
