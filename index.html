@@ -4383,7 +4383,8 @@ function calculate() {
         st.shares += netRealDiv / st.price;
         st.costBasis += netRealDiv;
       } else {
-        dripRedirectPool += netCashDiv;
+        // 只重定向真实收益，ROC是本金返还不应产生额外收益
+        dripRedirectPool += netRealDiv;
       }
     }
     if (dripRedirectPool > 0) {
