@@ -4349,29 +4349,29 @@ function calculate() {
       [0.08, 0.25, 0.67]   // 熊→牛市/震荡/熊
     ],
     // 各体制下的月均漂移(年化/12) 和 月波动率(年化/√12)
-    drift:    [0.10/12,  0.01/12, -0.06/12],   // 牛+10%, 震荡+1%, 熊-6%
-    vol:      [0.16/Math.sqrt(12), 0.22/Math.sqrt(12), 0.32/Math.sqrt(12)], // 牛16%, 震荡22%, 熊32%
+    drift:    [0.10/12,  0.01/12, -0.04/12],   // 牛+10%, 震荡+1%, 熊-4%
+    vol:      [0.15/Math.sqrt(12), 0.20/Math.sqrt(12), 0.28/Math.sqrt(12)], // 牛15%, 震荡20%, 熊28%
     // 板块敏感度: 高息ETF在熊市跌更多, 成长ETF在牛市涨更多
     beta: {
-      growth:  [1.15, 0.90, 1.40],   // SCHG/SCHD: 牛更牛, 熊更熊
-      covered: [0.95, 1.05, 1.25],   // QDTE/NVDY: 熊市期权策略承压
+      growth:  [1.15, 0.90, 1.30],   // SCHG/SCHD: 牛更牛, 熊更熊
+      covered: [0.95, 1.05, 1.20],   // QDTE/NVDY: 熊市期权策略承压
       neutral: [1.00, 1.00, 1.00]    // SPYM/XQQI: 中性
     }
   };
 
   // ===== GARCH(1,1) 波动率聚集 =====
   const garch = {
-    omega: 0.000005,   // 长期方差均值
-    alpha: 0.08,       // 前期冲击权重 (新信息冲击)
-    beta:  0.88,       // 前期方差权重 (波动惯性)
-    h: 0.015,          // 初始月方差 (≈年化18%)
+    omega: 0.000004,   // 长期方差均值
+    alpha: 0.06,       // 前期冲击权重
+    beta:  0.90,       // 前期方差权重 (高持续性)
+    h: 0.008,          // 初始月方差 (≈年化10%, 低起点)
   };
 
   // ===== 跳跃扩散 (Merton模型) - 肥尾事件 =====
   const jump = {
-    lambda: 0.02,      // 月跳跃强度 (2%概率发生跳跃)
-    muJump: -0.08,     // 跳跃均值 (平均-8%, 主要是下跌)
-    sigmaJump: 0.05,   // 跳跃标准差 (跳跃幅度不确定性)
+    lambda: 0.01,      // 月跳跃强度 (1%概率 ≈ 每8年一次)
+    muJump: -0.05,     // 跳跃均值 (平均-5%)
+    sigmaJump: 0.03,   // 跳跃标准差
   };
 
   // 根据ETF类型确定板块敏感度
@@ -4382,7 +4382,8 @@ function calculate() {
     return 'neutral';
   }
 
-  const portfolioAnnualVol = stocks.reduce((sum, s) => sum + s.allocation * s.annualVol, 0);
+  // 长期平均漂移 (各体制加权平均)
+  const longTermDrift = 0.50 * regime.drift[0] + 0.35 * regime.drift[1] + 0.15 * regime.drift[2];
 
   for (let m = 0; m < totalMonths; m++) {
     let totalUSD = monthlyInvestRMB / safeFx;
@@ -4437,41 +4438,43 @@ function calculate() {
     }
     regime.state = nextState;
 
-    // 体制特异性参数
-    const regimeDrift = regime.drift[regime.state];
-    const regimeVol = regime.vol[regime.state];
+    // 体制叠加量 = 当前体制漂移 - 长期平均漂移 (正=牛市超额, 负=熊市折损)
+    const regimeOverlay = regime.drift[regime.state] - longTermDrift;
 
     // ===== 2. GARCH波动率更新 =====
     const prevReturn = garch._lastReturn || 0;
     garch.h = garch.omega + garch.alpha * prevReturn * prevReturn + garch.beta * garch.h;
-    // 限制波动率范围 (年化8%~60%)
-    garch.h = Math.max(0.005, Math.min(0.025, garch.h));
-    const garchVol = Math.sqrt(garch.h);
+    garch.h = Math.max(0.003, Math.min(0.018, garch.h)); // 限制年化6%~25%
 
-    // ===== 3. 组合共同冲击 (市场因子) =====
-    const marketShock = randn() * Math.sqrt(regimeVol * regimeVol * 0.6 + garchVol * 0.4);
-
-    // ===== 4. 跳跃事件 (肥尾, 月频2%概率) =====
+    // ===== 3. 跳跃事件 =====
     const hasJump = rng() < jump.lambda;
-    const jumpSize = hasJump
-      ? jump.muJump + randn() * jump.sigmaJump  // 均值-8%, 标准差5% (多为大跌)
-      : 0;
+    const jumpSize = hasJump ? jump.muJump + randn() * jump.sigmaJump : 0;
 
-    // ===== 5. 个股价格变动 =====
+    // ===== 4. 个股价格变动 =====
+    // 核心修正: 每个ETF用自身的expectedPriceReturn作为基础漂移
+    // regime 提供短期偏离(叠加在基础漂移之上)
     for (const st of stocks) {
       const sector = getSectorBeta(st);
       const beta = regime.beta[sector][regime.state];
 
-      // 个股特质波动 (30% 原始, 受GARCH调节)
-      const idioVol = st.annualVol / Math.sqrt(12) * 0.3;
-      const idioShock = randn() * idioVol;
+      // a. 基础漂移 = 各ETF自身的预期价格回报
+      const baseDrift = st.monthlyPriceRet;
 
-      // 体制漂移 × 板块β + GARCH市场冲击 × β + 个股特质 + 跳跃
-      const driftComponent = regimeDrift * beta;
-      const shockComponent = marketShock * beta;
-      const monthlyRet = driftComponent + shockComponent + idioShock + jumpSize * beta;
+      // b. 体制叠加 = (当前体制 - 长期均值) × 板块β
+      const regimeEffect = regimeOverlay * beta;
 
-      garch._lastReturn = monthlyRet;  // 供下月GARCH使用
+      // c. 随机冲击: 体制波动 × β + GARCH波动 (方差可加性)
+      const regimeVol = regime.vol[regime.state];
+      const totalVar = regimeVol * regimeVol * beta * beta + garch.h;
+      const marketShock = randn() * Math.sqrt(totalVar);
+
+      // d. 个股特质波动 (10% 的个股波动)
+      const idioShock = randn() * (st.annualVol / Math.sqrt(12)) * 0.10;
+
+      // e. 合成月度回报
+      const monthlyRet = baseDrift + regimeEffect + marketShock + idioShock + jumpSize * beta;
+
+      garch._lastReturn = monthlyRet;
       st.price *= (1 + monthlyRet);
       if (st.price < 0.01) st.price = 0.01;
     }
@@ -5344,10 +5347,10 @@ function runMonteCarlo() {
     [0.15, 0.72, 0.13],
     [0.08, 0.25, 0.67]
   ];
-  const mcRegimeDrift = [0.10/12, 0.01/12, -0.06/12];
-  const mcRegimeVol = [0.16/Math.sqrt(12), 0.22/Math.sqrt(12), 0.32/Math.sqrt(12)];
-  const mcGarchOmega = 0.000005, mcGarchAlpha = 0.08, mcGarchBeta = 0.88;
-  const mcJumpLambda = 0.02, mcJumpMu = -0.08, mcJumpSigma = 0.05;
+  const mcRegimeDrift = [0.10/12, 0.01/12, -0.04/12];
+  const mcRegimeVol = [0.15/Math.sqrt(12), 0.20/Math.sqrt(12), 0.28/Math.sqrt(12)];
+  const mcGarchOmega = 0.000004, mcGarchAlpha = 0.06, mcGarchBeta = 0.90;
+  const mcJumpLambda = 0.01, mcJumpMu = -0.05, mcJumpSigma = 0.03;
 
   // 各ETF配置（加权平均参数用于组合层面MC）
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
@@ -5355,16 +5358,20 @@ function runMonteCarlo() {
     ticker: s.ticker,
     w: totalAlloc > 0 ? s.allocation / totalAlloc : 1/stockConfigs.length,
     vol: s.annualVol || 0.25,
+    monthlyRet: (s.expectedPriceReturn !== undefined ? s.expectedPriceReturn : -s.erosionRate/100) / 12,
     sector: (s.ticker === 'SCHG' || s.ticker === 'SCHD') ? 0 : (s.ticker === 'QDTE' || s.ticker === 'NVDY') ? 1 : 2
   }));
   const sectorBeta = [
-    [1.15, 0.90, 1.40],
-    [0.95, 1.05, 1.25],
+    [1.15, 0.90, 1.30],
+    [0.95, 1.05, 1.20],
     [1.00, 1.00, 1.00]
   ];
 
-  // 组合年化波动率（加权）
-  const portVol = normStocks.reduce((s, st) => s + st.w * st.vol, 0);
+  // 长期平均漂移
+  const mcLongTermDrift = 0.50 * mcRegimeDrift[0] + 0.35 * mcRegimeDrift[1] + 0.15 * mcRegimeDrift[2];
+
+  // 组合加权基础回报 (用于MC)
+  const baseMonthlyRet = normStocks.reduce((s, st) => s + st.w * st.monthlyRet, 0);
 
   // 蒙特卡洛路径
   const allPaths = [];
@@ -5377,7 +5384,7 @@ function runMonteCarlo() {
     let peak = val;
     let maxDD = 0;
     let regimeState = 0;
-    let garchH = 0.015;
+    let garchH = 0.008;
     let lastRet = 0;
 
     for (let m = 0; m < months; m++) {
@@ -5392,24 +5399,28 @@ function runMonteCarlo() {
         cum += row[ns];
         if (u < cum) { regimeState = ns; break; }
       }
-      const rDrift = mcRegimeDrift[regimeState];
       const rVol = mcRegimeVol[regimeState];
 
       // GARCH 更新
       garchH = mcGarchOmega + mcGarchAlpha * lastRet * lastRet + mcGarchBeta * garchH;
-      garchH = Math.max(0.005, Math.min(0.025, garchH));
+      garchH = Math.max(0.003, Math.min(0.018, garchH));
 
-      // 市场共同冲击
+      // 体制叠加量
+      const mcRegimeOverlay = mcRegimeDrift[regimeState] - mcLongTermDrift;
+
+      // 组合回报: 基础回报 + 体制叠加 + 随机冲击 + 跳跃
       const gaussRand = () => { let u = Math.random(), v = Math.random(); return Math.sqrt(-2*Math.log(u||0.0001))*Math.cos(2*Math.PI*v); };
-      const commonShock = gaussRand() * Math.sqrt(rVol * rVol * 0.6 + garchH * 0.4);
+
+      // 随机冲击: 体制波动² + GARCH方差 (方差可加)
+      const totalVar = rVol * rVol + garchH;
+      const marketShock = gaussRand() * Math.sqrt(totalVar);
 
       // 跳跃事件
       const hasJump = Math.random() < mcJumpLambda;
       const jumpSize = hasJump ? mcJumpMu + gaussRand() * mcJumpSigma : 0;
 
-      // 组合回报：体制漂移 + 共同冲击 + 特质波动 + 跳跃
-      const idioShock = gaussRand() * portVol / Math.sqrt(12) * 0.3;
-      const monthlyRet = rDrift + commonShock + idioShock + jumpSize;
+      // 合成月度回报
+      const monthlyRet = baseMonthlyRet + mcRegimeOverlay + marketShock + jumpSize;
       lastRet = monthlyRet;
 
       val *= (1 + monthlyRet);
@@ -5460,7 +5471,7 @@ function runMonteCarlo() {
   monteCarloResult = { allPaths, pData, samples, baseline, finalValues, drawdowns, totalInvested };
 
   renderMonteCarloChart({ pData, samples, baseline, totalInvested });
-  renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, worstDD, count, vol: portVol, years });
+  renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, worstDD, count, years });
 }
 
 async function renderMonteCarloChart({ pData, samples, baseline, totalInvested }) {
@@ -5589,7 +5600,7 @@ async function renderMonteCarloChart({ pData, samples, baseline, totalInvested }
   });
 }
 
-function renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, worstDD, count, vol, years }) {
+function renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, worstDD, count, years }) {
   const totalInvested = monteCarloResult?.totalInvested || 0;
   const fmt = (v) => '¥' + (v / 10000).toFixed(1) + '万';
   const fmtPct = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
@@ -5614,7 +5625,7 @@ function renderMonteCarloStats({ median, p10, p90, pMean, probProfit, medianDD, 
     <div class="mc-stat">
       <div class="mc-stat-lbl">盈利概率</div>
       <div class="mc-stat-val" style="color:${probProfit >= 80 ? 'var(--green)' : probProfit >= 60 ? 'var(--gold)' : 'var(--red)'};">${probProfit.toFixed(0)}%</div>
-      <div class="mc-stat-note">${count} 次模拟 · 波动率 ${(vol * 100).toFixed(0)}%</div>
+      <div class="mc-stat-note">${count} 次模拟 · Markov体制切换</div>
     </div>
     <div class="mc-stat">
       <div class="mc-stat-lbl">中位回撤</div>
@@ -5938,22 +5949,22 @@ function renderSummary() {
             <td style="text-align:left;font-weight:700;color:#22c55e;">🟢 牛市</td>
             <td style="text-align:center;font-family:var(--font-mono);color:#22c55e;">${bullPct}%</td>
             <td style="text-align:right;font-family:var(--font-mono);">+0.83%/月</td>
-            <td style="text-align:right;font-family:var(--font-mono);">1.30%/月</td>
+            <td style="text-align:right;font-family:var(--font-mono);">1.22%/月</td>
             <td style="text-align:left;color:var(--text-secondary);font-size:13px;">S&P500+10%年化 · 成长股领涨</td>
           </tr>
           <tr>
             <td style="text-align:left;font-weight:700;color:#d97706;">🟡 震荡</td>
             <td style="text-align:center;font-family:var(--font-mono);color:#d97706;">${sidewaysPct}%</td>
             <td style="text-align:right;font-family:var(--font-mono);">+0.08%/月</td>
-            <td style="text-align:right;font-family:var(--font-mono);">1.80%/月</td>
+            <td style="text-align:right;font-family:var(--font-mono);">1.63%/月</td>
             <td style="text-align:left;color:var(--text-secondary);font-size:13px;">区间震荡 · 高股息策略防御</td>
           </tr>
           <tr>
             <td style="text-align:left;font-weight:700;color:#ef4444;">🔴 熊市</td>
             <td style="text-align:center;font-family:var(--font-mono);color:#ef4444;">${bearPct}%</td>
-            <td style="text-align:right;font-family:var(--font-mono);">-0.50%/月</td>
-            <td style="text-align:right;font-family:var(--font-mono);">2.60%/月</td>
-            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">-6%年化 · 波动翻倍 · 高息ETF承压</td>
+            <td style="text-align:right;font-family:var(--font-mono);">-0.33%/月</td>
+            <td style="text-align:right;font-family:var(--font-mono);">2.29%/月</td>
+            <td style="text-align:left;color:var(--text-secondary);font-size:13px;">-4%年化 · 波动放大 · 高息ETF承压</td>
           </tr>
         </tbody>
       </table>
