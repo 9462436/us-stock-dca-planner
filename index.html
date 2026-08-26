@@ -3410,9 +3410,9 @@ const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 //   SCHD  起价 $50.00  现价 $78.50  价格CAGR +10.0%   现价分红率 3.5%   (温和回归假设 +8%)
 //   SPYM  起价 $85.00  现价 $91.56  价格CAGR +5.0%    现价分红率 8.0%    (温和回归假设 +4%)
 //   XQQI  起价 $50.00  现价 $50.22  价格CAGR +0.82%   现价分红率 11.7%
-//   QDTE  起价 $50.00  现价 $29.83  价格CAGR -19%     现价分红率 44.2%  (0DTE策略天然cap上涨，假设 -3%)
-//   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.2%   现价分红率 53.5%  (扣除分红后NAV价格约-2%)
-// 温和回归假设：SCHG +10% / SCHD +8% / SPYM +4% / XQQI +0.8% / QDTE -3% / NVDY -2%
+//   QDTE  起价 $50.00  现价 $29.83  价格CAGR -19%     现价分红率 44.2%  (价格回归 -15%，ROC已单独计入分红流)
+//   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.2%   现价分红率 53.5%  (价格回归 -10%，ROC已单独计入分红流)
+// 温和回归假设：SCHG +10% / SCHD +8% / SPYM +4% / XQQI +0.8% / QDTE -15% / NVDY -10%
 const stockConfigs = [
   // dripEnabled: 是否对该ETF开启股息再投资(DRIP)
   //   true  = 股息自动买入本ETF（默认行为）
@@ -3468,7 +3468,7 @@ const stockConfigs = [
     erosionRate: 0, allocation: 10,
     sustainableYield: 0.442,
     rocRatio: 0.80,
-    expectedPriceReturn: -0.03, // 0DTE策略天然cap上涨，实测2.5年价格-41%，保守估计年化-3%
+    expectedPriceReturn: -0.15, // 实测价格CAGR -19%，假设部分恢复；44%收益率已单独计入分红流
     annualVol: 0.20,
     dripEnabled: false, dripRedirectTarget: 'SCHG',
     color: '#8b5cf6', colorClass: 'c-qdte'
@@ -3479,7 +3479,7 @@ const stockConfigs = [
     erosionRate: 0, allocation: 5,
     sustainableYield: 0.535,
     rocRatio: 0.93,
-    expectedPriceReturn: -0.02, // 扣除分红后NAV价格回报约-2%，保守估计
+    expectedPriceReturn: -0.10, // 实测价格CAGR -12.2%，保守取-10%；53%收益率已单独计入分红流
     annualVol: 0.45,
     dripEnabled: false, dripRedirectTarget: 'SCHG',
     color: '#22c55e', colorClass: 'c-nvdy'
