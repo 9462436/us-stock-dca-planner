@@ -4345,8 +4345,9 @@ function calculate() {
     };
   });
 
-  // 组合加权月波动率 (用于共同市场冲击)
-  const portMonthlyVol = stocks.reduce((sum, s) => sum + s.allocation * s.monthlyVol, 0);
+  // 组合实际月波动率: 加权平均再打折(分散化效应, 相关系数~0.6)
+  // 个股加权vol ≈ 17%/年, 分散化后 ≈ 14%/年 → 月化 ≈ 4.0%
+  const portMonthlyVol = stocks.reduce((sum, s) => sum + s.allocation * s.monthlyVol, 0) * 0.80;
 
   const monthlyData = [];
   const monthlyNav = [];
@@ -5299,8 +5300,8 @@ function runMonteCarlo() {
     monthlyRet: (s.expectedPriceReturn !== undefined ? s.expectedPriceReturn : -s.erosionRate/100) / 12,
     monthlyVol: (s.annualVol || 0.25) / Math.sqrt(12)
   }));
-  // 组合加权月波动率
-  const portMonthlyVol = normStocks.reduce((sum, st) => sum + st.w * st.monthlyVol, 0);
+  // 组合月波动率 (分散化后)
+  const portMonthlyVol = normStocks.reduce((sum, st) => sum + st.w * st.monthlyVol, 0) * 0.80;
 
   // 蒙特卡洛路径
   const allPaths = [];
