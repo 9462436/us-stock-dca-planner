@@ -3387,44 +3387,45 @@ body.compact .header { padding: var(--space-3) 0 var(--space-4); }
 // ============ CONFIG ============
 const FINNHUB_KEY = 'd9ocb79r01qt6o9b6ib0d9ocb79r01qt6o9b6ibg';
 
-// ============ ETF 参数（实测客观版，2026-08-14 抓取自 stockanalysis.com） ============
-// 数据完全来自真实历史价格 + TTM 分红，未做主观调整。
-// 警告：以下参数是把「过去 1.5~3.26 年」的实际表现线性外推到「未来 20 年」。
-//   历史数据不能保证未来表现，但这是当前最客观的估计基准。
+// ============ ETF 参数（长期预期版，2026-08-26 基于学术研究与市场均值） ============
+// 基于长期市场均值回归与学术研究（Ibbotson, Dimson-Marsh-Staunton等），非短期历史外推。
+// 警告：20年预测存在巨大不确定性，以下为保守估计，实际结果可能显著偏离。
 //
 // 关键定义（均现价口径，与计算引擎一致）：
 //   sustainableYield = 名义现金分红率（含 ROC）= TTM 分红 ÷ 现价
-//   rocRatio        = 分红中本金返还(ROC)占比（SEC 19a-1 实测）
-//   expectedPriceReturn = NAV 历史 CAGR = (现价/起价)^(1/年限) - 1
-//   annualVol = 年化波动率估计（单股 35~45%, 指数 15~20%）
+//   rocRatio        = 分红中本金返还(ROC)占比（SEC 19a-1 实测 / 策略结构推导）
+//   expectedPriceReturn = 长期价格预期年化收益（扣除分红后的纯价格增值）
+//   annualVol = 年化波动率估计（指数 15-20%，单股/策略 20-45%）
 //   资产结构区分：
-//     - 核心成长（SCHG）：价格驱动，温和回归 +10%
-//     - 红利成长（SCHD）：质量+红利因子，温和回归 +8%
-//     - 波动率溢价（SPYM）：稳定收益，+4%，低波动
-//     - 纳指 100 高收益（XQQI）：ROC 较低(10%)，真实派息稳定
-//     - 指数 0DTE（QDTE）：0DTE策略天然cap上涨，假设 -3%
-//     - 单股备兑（NVDY）：结构性 NAV 负漂移，ROC 93%，少量配置
+//     - 核心成长（SCHG）：美股大盘成长长期均值 ~7-8%，保守取 7%
+//     - 红利成长（SCHD）：质量+红利因子长期溢价 ~5-6%，保守取 5.5%
+//     - 波动率溢价（SPYM）：VRP长期收敛 ~2-3%价格 + 6-7%收益，保守取 2%+6.5%
+//     - 纳指 100 备兑（XQQI）：备兑期权长期价格微涨 ~1%，可持续分红 ~8.5%（扣除15% ROC）
+//     - 指数 0DTE（QDTE）：0DTE结构性NAV侵蚀 ~-12%/年，名义分红 18%（85%为ROC）
+//     - 单股备兑（NVDY）：单股风险极大，NAV侵蚀 ~-15%/年，名义分红 15%（95%为ROC）
 //
-// 实测数据源（截至 2026-08-14）：
-//   SCHG  起价 $26.95  现价 $35.10  价格CAGR +13.0%   现价分红率 0.5%   (温和回归假设 +10%)
-//   SCHD  起价 $50.00  现价 $78.50  价格CAGR +10.0%   现价分红率 3.5%   (温和回归假设 +8%)
-//   SPYM  起价 $85.00  现价 $91.56  价格CAGR +5.0%    现价分红率 8.0%    (温和回归假设 +4%)
-//   XQQI  起价 $50.00  现价 $50.22  价格CAGR +0.82%   现价分红率 11.7%
-//   QDTE  起价 $50.00  现价 $29.83  价格CAGR -19%     现价分红率 44.2%  (价格回归 -15%，ROC已单独计入分红流)
-//   NVDY  起价 $20.00  现价 $13.09  价格CAGR -12.2%   现价分红率 53.5%  (价格回归 -10%，ROC已单独计入分红流)
-// 温和回归假设：SCHG +10% / SCHD +8% / SPYM +4% / XQQI +0.8% / QDTE -15% / NVDY -10%
+// 长期预期汇总：
+//   SCHG:  价格 +7.0%  + 分红 0.5%  = 总预期 ~7.5%
+//   SCHD:  价格 +5.5%  + 分红 3.5%  = 总预期 ~9.0%
+//   SPYM:  价格 +2.0%  + 分红 6.5%  = 总预期 ~8.5%（扣除0% ROC）
+//   XQQI:  价格 +1.0%  + 分红 7.2%  = 总预期 ~8.2%（扣除15% ROC后真实 ~7.0%）
+//   QDTE:  价格 -12%   + 分红 2.7%  = 总预期 ~-9.3%（扣除85% ROC后真实 ~-11.4%）
+//   NVDY:  价格 -15%   + 分红 0.75% = 总预期 ~-14.25%（扣除95% ROC后真实 ~-14.9%）
+//
+// 加权组合预期（扣除ROC后真实收益）：约 5.5-6.5% 年化（含波动率拖累后更低）
 const stockConfigs = [
   // dripEnabled: 是否对该ETF开启股息再投资(DRIP)
   //   true  = 股息自动买入本ETF（默认行为）
   //   false = 股息提取为现金，模拟中定向定投到核心资产(SCHG)
   // dripRedirectTarget: 当dripEnabled=false时，股息重定向到哪个ETF
+  // 长期预期（20年视角）：价格回归均值，高收益ETF不可持续，保守估计
   {
     ticker: 'SCHG', name: 'Schwab US Large-Cap Growth ETF',
     divPerShare: 0.18, divFreq: 'quarterly',
     erosionRate: 0, allocation: 40,
     sustainableYield: 0.005,
     rocRatio: 0.0,
-    expectedPriceReturn: 0.10,
+    expectedPriceReturn: 0.07, // 长期美股成长均值约 7-8%，保守取 7%
     annualVol: 0.20,
     dripEnabled: true,
     color: '#10b981', colorClass: 'c-schg'
@@ -3435,7 +3436,7 @@ const stockConfigs = [
     erosionRate: 0, allocation: 20,
     sustainableYield: 0.035,
     rocRatio: 0.0,
-    expectedPriceReturn: 0.08,
+    expectedPriceReturn: 0.055, // 红利成长长期约 5-6%，保守取 5.5%
     annualVol: 0.15,
     dripEnabled: true,
     color: '#059669', colorClass: 'c-schd'
@@ -3444,9 +3445,9 @@ const stockConfigs = [
     ticker: 'SPYM', name: 'Simplify Volatility Premium ETF',
     divPerShare: 1.85, divFreq: 'monthly',
     erosionRate: 3, allocation: 10,
-    sustainableYield: 0.08,
+    sustainableYield: 0.065, // 波动率溢价长期收敛至 6-7%
     rocRatio: 0.0,
-    expectedPriceReturn: 0.04,
+    expectedPriceReturn: 0.02, // 价格基本持平微涨
     annualVol: 0.12,
     dripEnabled: true,
     color: '#06b6d4', colorClass: 'c-spym'
@@ -3455,9 +3456,9 @@ const stockConfigs = [
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
     divPerShare: 0.82, divFreq: 'monthly',
     erosionRate: 0, allocation: 10,
-    sustainableYield: 0.117,
-    rocRatio: 0.10,
-    expectedPriceReturn: 0.0082,
+    sustainableYield: 0.085, // 备兑期权策略长期可持续收益率约 8-9%（扣除ROC后）
+    rocRatio: 0.15,
+    expectedPriceReturn: 0.01, // 纳指100备兑长期价格微涨
     annualVol: 0.15,
     dripEnabled: true,
     color: '#3b82f6', colorClass: 'c-xqqi'
@@ -3465,10 +3466,10 @@ const stockConfigs = [
   {
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
     divPerShare: 0.20, divFreq: 'weekly',
-    erosionRate: 0, allocation: 10,
-    sustainableYield: 0.442,
-    rocRatio: 0.80,
-    expectedPriceReturn: -0.15, // 实测价格CAGR -19%，假设部分恢复；44%收益率已单独计入分红流
+    erosionRate: 0, allocation: 8, // 降低配置比例
+    sustainableYield: 0.18, // 0DTE策略长期可持续分红率约 18%（大部分为ROC）
+    rocRatio: 0.85,
+    expectedPriceReturn: -0.12, // 结构性NAV侵蚀约 -12%/年
     annualVol: 0.20,
     dripEnabled: false, dripRedirectTarget: 'SCHG',
     color: '#8b5cf6', colorClass: 'c-qdte'
@@ -3477,9 +3478,9 @@ const stockConfigs = [
     ticker: 'NVDY', name: 'YieldMax NVDA Option Income ETF',
     divPerShare: 0.10, divFreq: 'weekly',
     erosionRate: 0, allocation: 5,
-    sustainableYield: 0.535,
-    rocRatio: 0.93,
-    expectedPriceReturn: -0.10, // 实测价格CAGR -12.2%，保守取-10%；53%收益率已单独计入分红流
+    sustainableYield: 0.15, // 单股备兑长期可持续分红率约 15%（绝大部分ROC）
+    rocRatio: 0.95,
+    expectedPriceReturn: -0.15, // 单股风险更大，NAV侵蚀约 -15%/年
     annualVol: 0.45,
     dripEnabled: false, dripRedirectTarget: 'SCHG',
     color: '#22c55e', colorClass: 'c-nvdy'
