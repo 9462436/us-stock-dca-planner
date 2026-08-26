@@ -4297,29 +4297,19 @@ function getMonthlyDivs(stock) {
 }
 
 function calculate() {
-  // XIRR: 定投专用内部收益率 (牛顿法求解)
-  // 现金流: 每月 -monthlyInvestRMB (期初), 末期 +totalValueRMB
+  // XIRR: 定投专用内部收益率 (二分法求解年金终值方程)
+  // 定投(期初): FV = PMT * (1+r) * [(1+r)^n - 1] / r
   function computeXIRR(monthlyPMT, months, finalValue) {
     if (months <= 1 || monthlyPMT <= 0 || finalValue <= 0) return 0;
-    // 求解 r: sum_{k=0}^{months-1} -PMT*(1+r)^((months-k)/12) + finalValue = 0
-    // 即: finalValue = PMT * sum_{j=1}^{months} (1+r)^(j/12)
-    // 牛顿法迭代
-    let r = 0.08; // 初始猜测 8%
-    for (let iter = 0; iter < 20; iter++) {
-      let f = -finalValue;
-      let df = 0;
-      for (let j = 1; j <= months; j++) {
-        const t = j / 12;
-        const factor = Math.pow(1 + r, t);
-        f += monthlyPMT * factor;
-        df += monthlyPMT * factor * t / (1 + r);
-      }
-      const newR = r - f / df;
-      if (!isFinite(newR) || newR <= -0.99) { r = 0.08; break; }
-      if (Math.abs(newR - r) < 1e-6) { r = newR; break; }
-      r = newR;
+    let lo = -0.005, hi = 0.05; // 月利率上下界 (-0.5% ~ 5%/月)
+    for (let iter = 0; iter < 60; iter++) {
+      const mid = (lo + hi) / 2;
+      const rn1 = Math.pow(1 + mid, months);
+      const f = monthlyPMT * (1 + mid) * (rn1 - 1) / mid - finalValue;
+      if (f > 0) hi = mid; else lo = mid;
+      if (Math.abs(hi - lo) < 1e-12) break;
     }
-    return r * 100;
+    return ((lo + hi) / 2) * 12 * 100; // 月利率→年化%
   }
 
   const monthlyInvestRMB = parseFloat(document.getElementById('monthlyInvest') && document.getElementById('monthlyInvest').value) || 7000;
@@ -4335,7 +4325,8 @@ function calculate() {
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
   const normWeights = stockConfigs.map(s => totalAlloc > 0 ? s.allocation / totalAlloc : 1/stockConfigs.length);
 
-  // Markov 体制: 牛+8%, 震荡0%, 熊-10% (年化); 持久性~12月/7月/5月
+  // Markov 体制: 牛+1.5%, 震荡0%, 熊-2.5% (年化); 体制漂移叠加在个股月回报上
+  // 1.5%/12=0.125%/月, 与SCHG基准0.83%/月叠加后合理(牛市12.7%,熊市7.7%)
   const regime = {
     state: 0,
     transition: [
@@ -4343,7 +4334,7 @@ function calculate() {
       [0.15, 0.70, 0.15],  // 震荡→牛/震荡/熊
       [0.05, 0.15, 0.80]   // 熊→牛/震荡/熊
     ],
-    driftAdj: [0.08, 0, -0.10],
+    driftAdj: [0.015, 0, -0.025],
   };
 
   const stocks = stockConfigs.map((s, i) => {
@@ -4370,8 +4361,8 @@ function calculate() {
   });
 
   // 组合实际月波动率: 加权平均再打折(分散化效应, 相关系数~0.6)
-  // 个股加权vol ≈ 17%/年, 分散化后 ≈ 14%/年 → 月化 ≈ 4.0%
-  const portMonthlyVol = stocks.reduce((sum, s) => sum + s.allocation * s.monthlyVol, 0) * 0.80;
+  const weightedVol = stocks.reduce((sum, s) => sum + s.allocation * s.monthlyVol, 0);
+  const portMonthlyVol = weightedVol * 0.60;
 
   const monthlyData = [];
   const monthlyNav = [];
@@ -4433,17 +4424,18 @@ function calculate() {
     const regimeDriftAdj = regime.driftAdj[regime.state] / 12; // 月度调整
 
     // ===== 价格变动 =====
-    // 市场共同冲击: 用组合加权波动率(不是个股波动率)
-    // 这保证了"市场整体"的波动是合理的, 各ETF通过beta差异化响应
-    const commonShock = randn() * portMonthlyVol;
+    // 市场共同冲击: 用组合加权波动率作为市场波动基准
+    const marketShock = randn() * portMonthlyVol;
 
     for (const st of stocks) {
+      // beta = 个股vol / 加权平均vol, 衡量对市场冲击的敏感度(相对值,非绝对)
+      const beta = st.monthlyVol / weightedVol;
       // 基础: 每个ETF自身的预期回报
       // 体制: 在基础之上加减 体制漂移调整
-      // 市场: 共同冲击 × 1(所有ETF共享同一个市场走势)
-      // 特质: 个股独有噪声(很小, 仅10%权重)
+      // 市场: 共同冲击 × beta(高波动ETF响应更大)
+      // 特质: 个股独有噪声
       const idioNoise = randn() * st.monthlyVol * 0.10;
-      const monthlyRet = st.monthlyPriceRet + regimeDriftAdj + commonShock + idioNoise;
+      const monthlyRet = st.monthlyPriceRet + regimeDriftAdj + marketShock * beta + idioNoise;
       st.price *= (1 + monthlyRet);
       if (st.price < 0.01) st.price = 0.01;
     }
@@ -5315,7 +5307,7 @@ function runMonteCarlo() {
     [0.15, 0.70, 0.15],
     [0.05, 0.15, 0.80]
   ];
-  const mcRegimeDriftAdj = [0.08, 0, -0.10]; // 体制漂移调整(年化)
+  const mcRegimeDriftAdj = [0.015, 0, -0.025]; // 体制漂移调整(年化)
 
   // 各ETF配置
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
@@ -5325,7 +5317,7 @@ function runMonteCarlo() {
     monthlyVol: (s.annualVol || 0.25) / Math.sqrt(12)
   }));
   // 组合月波动率 (分散化后)
-  const portMonthlyVol = normStocks.reduce((sum, st) => sum + st.w * st.monthlyVol, 0) * 0.80;
+  const portMonthlyVol = normStocks.reduce((sum, st) => sum + st.w * st.monthlyVol, 0) * 0.60;
 
   // 蒙特卡洛路径
   const allPaths = [];
@@ -5633,24 +5625,17 @@ function renderSummary() {
   const calmarColor = calmar > 1 ? 'var(--green)' : calmar > 0.5 ? 'var(--accent)' : calmar > 0.2 ? 'var(--gold)' : 'var(--red)';
 
   // ---------- 6. 其他指标 ----------
-  // XIRR 复用
-  function xirr(monthlyPMT, months, finalValue) {
-    if (months <= 1 || monthlyPMT <= 0 || finalValue <= 0) return 0;
-    let r = 0.08;
-    for (let iter = 0; iter < 20; iter++) {
-      let f = -finalValue, df = 0;
-      for (let j = 1; j <= months; j++) {
-        const t = j / 12;
-        const factor = Math.pow(1 + r, t);
-        f += monthlyPMT * factor;
-        df += monthlyPMT * factor * t / (1 + r);
-      }
-      const newR = r - f / df;
-      if (!isFinite(newR) || newR <= -0.99) { r = 0.08; break; }
-      if (Math.abs(newR - r) < 1e-6) { r = newR; break; }
-      r = newR;
+  function xirr(pmt, n, fv) {
+    if (n <= 1 || pmt <= 0 || fv <= 0) return 0;
+    let lo = -0.005, hi = 0.05;
+    for (let iter = 0; iter < 60; iter++) {
+      const mid = (lo + hi) / 2;
+      const rn1 = Math.pow(1 + mid, n);
+      const f = pmt * (1 + mid) * (rn1 - 1) / mid - fv;
+      if (f > 0) hi = mid; else lo = mid;
+      if (Math.abs(hi - lo) < 1e-12) break;
     }
-    return r * 100;
+    return ((lo + hi) / 2) * 12 * 100;
   }
   const coveredMonths = monthlyInvest > 0 ? last.cumulativeDividendsRMB / monthlyInvest : 0;
   const cagr = xirr(monthlyInvest, last.month, last.totalValueRMB);
