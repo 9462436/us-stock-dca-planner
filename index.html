@@ -4310,16 +4310,15 @@ function calculate() {
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
   const normWeights = stockConfigs.map(s => totalAlloc > 0 ? s.allocation / totalAlloc : 1/stockConfigs.length);
 
-  // Markov 体制: 仅影响漂移(±2%), 不影响波动率
+  // Markov 体制: 牛+8%, 震荡0%, 熊-10% (年化); 持久性~12月/7月/5月
   const regime = {
     state: 0,
     transition: [
-      [0.87, 0.10, 0.03],
-      [0.15, 0.72, 0.13],
-      [0.08, 0.25, 0.67]
+      [0.92, 0.06, 0.02],  // 牛→牛/震荡/熊
+      [0.15, 0.70, 0.15],  // 震荡→牛/震荡/熊
+      [0.05, 0.15, 0.80]   // 熊→牛/震荡/熊
     ],
-    // 体制对漂移的调整量(年化): 牛+1%, 震荡0%, 熊-2%
-    driftAdj: [0.01, 0, -0.02],
+    driftAdj: [0.08, 0, -0.10],
   };
 
   const stocks = stockConfigs.map((s, i) => {
@@ -5285,13 +5284,13 @@ function runMonteCarlo() {
   // 基准情景（主模拟实际走势）
   const baseline = data.map(d => d.totalValueRMB);
 
-  // 与主模拟一致的简化 Markov 体制切换参数
+  // 与主模拟一致的 Markov 体制参数
   const mcRegimeTrans = [
-    [0.87, 0.10, 0.03],
-    [0.15, 0.72, 0.13],
-    [0.08, 0.25, 0.67]
+    [0.92, 0.06, 0.02],
+    [0.15, 0.70, 0.15],
+    [0.05, 0.15, 0.80]
   ];
-  const mcRegimeDriftAdj = [0.01, 0, -0.02]; // 体制漂移调整(年化)
+  const mcRegimeDriftAdj = [0.08, 0, -0.10]; // 体制漂移调整(年化)
 
   // 各ETF配置
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
