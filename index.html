@@ -4360,11 +4360,13 @@ function calculate() {
   };
 
   // ===== GARCH(1,1) 波动率聚集 =====
+  // 目标：GARCH 仅作为体制波动率的微调叠加(年化+5~8%)，不主导
+  // 初始 h=0.0008 (年化~10%)，长期 h≈0.0015 (年化~13%)
   const garch = {
-    omega: 0.000004,   // 长期方差均值
+    omega: 0.00006,    // 长期方差均值: omega/(1-α-β) = 0.00006/0.04 = 0.0015
     alpha: 0.06,       // 前期冲击权重
     beta:  0.90,       // 前期方差权重 (高持续性)
-    h: 0.008,          // 初始月方差 (≈年化10%, 低起点)
+    h: 0.0008,         // 初始月方差 (年化10%, 低起点)
   };
 
   // ===== 跳跃扩散 (Merton模型) - 肥尾事件 =====
@@ -4444,7 +4446,7 @@ function calculate() {
     // ===== 2. GARCH波动率更新 =====
     const prevReturn = garch._lastReturn || 0;
     garch.h = garch.omega + garch.alpha * prevReturn * prevReturn + garch.beta * garch.h;
-    garch.h = Math.max(0.003, Math.min(0.018, garch.h)); // 限制年化6%~25%
+    garch.h = Math.max(0.0003, Math.min(0.004, garch.h)); // 限制年化6%~17%
 
     // ===== 3. 跳跃事件 =====
     const hasJump = rng() < jump.lambda;
@@ -5349,7 +5351,7 @@ function runMonteCarlo() {
   ];
   const mcRegimeDrift = [0.10/12, 0.01/12, -0.04/12];
   const mcRegimeVol = [0.15/Math.sqrt(12), 0.20/Math.sqrt(12), 0.28/Math.sqrt(12)];
-  const mcGarchOmega = 0.000004, mcGarchAlpha = 0.06, mcGarchBeta = 0.90;
+  const mcGarchOmega = 0.00006, mcGarchAlpha = 0.06, mcGarchBeta = 0.90;
   const mcJumpLambda = 0.01, mcJumpMu = -0.05, mcJumpSigma = 0.03;
 
   // 各ETF配置（加权平均参数用于组合层面MC）
@@ -5384,7 +5386,7 @@ function runMonteCarlo() {
     let peak = val;
     let maxDD = 0;
     let regimeState = 0;
-    let garchH = 0.008;
+    let garchH = 0.0008;
     let lastRet = 0;
 
     for (let m = 0; m < months; m++) {
@@ -5403,7 +5405,7 @@ function runMonteCarlo() {
 
       // GARCH 更新
       garchH = mcGarchOmega + mcGarchAlpha * lastRet * lastRet + mcGarchBeta * garchH;
-      garchH = Math.max(0.003, Math.min(0.018, garchH));
+      garchH = Math.max(0.0003, Math.min(0.004, garchH));
 
       // 体制叠加量
       const mcRegimeOverlay = mcRegimeDrift[regimeState] - mcLongTermDrift;
