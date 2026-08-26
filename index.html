@@ -4297,6 +4297,18 @@ function getMonthlyDivs(stock) {
 }
 
 function calculate() {
+  // XIRR: 定投专用内部收益率 (牛顿法求解)
+  // 现金流: 每月 -monthlyInvestRMB, 末期 +totalValueRMB
+  function computeXIRR(monthlyPMT, months, finalValue) {
+    if (months <= 1) return 0;
+    // 年化率近似: 用年金终值公式 FV = PMT * ((1+r)^n - 1) / r 反解 r
+    // 简化: 用平均投资期限近似
+    const avgYears = (months - 1) / 24; // 首笔投n月,末笔投0月,平均约n/2月
+    const totalInvested = monthlyPMT * months;
+    if (totalInvested <= 0 || finalValue <= 0) return 0;
+    return (Math.pow(finalValue / totalInvested, 1 / avgYears) - 1) * 100;
+  }
+
   const monthlyInvestRMB = parseFloat(document.getElementById('monthlyInvest') && document.getElementById('monthlyInvest').value) || 7000;
   const safeFx = (Number.isFinite(fxRate) && fxRate > 0) ? fxRate : 6.75;
   const taxRate = 0.10;
@@ -4428,8 +4440,7 @@ function calculate() {
     const portfolioValueRMB = portfolioValueUSD * safeFx;
     const totalValueRMB = portfolioValueRMB; // 股息已再投资入股价
     const elapsed = m + 1;
-    const years = elapsed / 12;
-    const cagr = cumulativeInvestedRMB>0 ? (Math.pow(totalValueRMB/cumulativeInvestedRMB,1/years)-1)*100 : 0;
+    const cagr = computeXIRR(monthlyInvestRMB, elapsed, totalValueRMB);
     monthlyNav.push(totalValueRMB);
 
     let cumulativeDivRMB = 0;
@@ -5611,7 +5622,8 @@ function renderSummary() {
   // ---------- 6. 其他指标 ----------
   const coveredMonths = monthlyInvest > 0 ? last.cumulativeDividendsRMB / monthlyInvest : 0;
   const years = last.month / 12;
-  const cagr = last.investedRMB > 0 ? (Math.pow(last.totalValueRMB / last.investedRMB, 1/years) - 1) * 100 : 0;
+  const avgYears = (last.month - 1) / 24;
+  const cagr = last.investedRMB > 0 ? (Math.pow(last.totalValueRMB / last.investedRMB, 1 / avgYears) - 1) * 100 : 0;
 
   // ---------- 6b. DRIP 重定向统计 ----------
   const schgStock = last.stocks.find(s => s.ticker === 'SCHG');
