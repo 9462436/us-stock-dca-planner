@@ -4326,13 +4326,12 @@ function calculate() {
   const normWeights = stockConfigs.map(s => totalAlloc > 0 ? s.allocation / totalAlloc : 1/stockConfigs.length);
 
   // Markov 体制: 牛+1.5%, 震荡0%, 熊-2.5% (年化); 体制漂移叠加在个股月回报上
-  // 1.5%/12=0.125%/月, 与SCHG基准0.83%/月叠加后合理(牛市12.7%,熊市7.7%)
   const regime = {
     state: 0,
     transition: [
-      [0.92, 0.06, 0.02],  // 牛→牛/震荡/熊
-      [0.15, 0.70, 0.15],  // 震荡→牛/震荡/熊
-      [0.05, 0.15, 0.80]   // 熊→牛/震荡/熊
+      [0.92, 0.06, 0.02],
+      [0.15, 0.70, 0.15],
+      [0.05, 0.15, 0.80]
     ],
     driftAdj: [0.015, 0, -0.025],
   };
@@ -4360,9 +4359,9 @@ function calculate() {
     };
   });
 
-  // 组合实际月波动率: 加权平均再打折(分散化效应, 相关系数~0.6)
+  // 组合实际月波动率
   const weightedVol = stocks.reduce((sum, s) => sum + s.allocation * s.monthlyVol, 0);
-  const portMonthlyVol = weightedVol * 0.60;
+  const portMonthlyVol = weightedVol * 0.35;
 
   const monthlyData = [];
   const monthlyNav = [];
@@ -4424,18 +4423,16 @@ function calculate() {
     const regimeDriftAdj = regime.driftAdj[regime.state] / 12; // 月度调整
 
     // ===== 价格变动 =====
-    // 市场共同冲击: 用组合加权波动率作为市场波动基准
+    // 市场共同冲击: 所有ETF共享同一随机因子, 乘以组合波动率
     const marketShock = randn() * portMonthlyVol;
 
     for (const st of stocks) {
-      // beta = 个股vol / 加权平均vol, 衡量对市场冲击的敏感度(相对值,非绝对)
-      const beta = st.monthlyVol / weightedVol;
       // 基础: 每个ETF自身的预期回报
       // 体制: 在基础之上加减 体制漂移调整
-      // 市场: 共同冲击 × beta(高波动ETF响应更大)
-      // 特质: 个股独有噪声
+      // 市场: 共同冲击(所有ETF共享同一个市场走势)
+      // 特质: 个股独有噪声(很小)
       const idioNoise = randn() * st.monthlyVol * 0.10;
-      const monthlyRet = st.monthlyPriceRet + regimeDriftAdj + marketShock * beta + idioNoise;
+      const monthlyRet = st.monthlyPriceRet + regimeDriftAdj + marketShock + idioNoise;
       st.price *= (1 + monthlyRet);
       if (st.price < 0.01) st.price = 0.01;
     }
