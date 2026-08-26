@@ -4318,8 +4318,8 @@ function calculate() {
       [0.15, 0.72, 0.13],
       [0.08, 0.25, 0.67]
     ],
-    // 体制对漂移的调整量(年化): 牛+3%, 震荡0%, 熊-5%
-    driftAdj: [0.03, 0, -0.05],
+    // 体制对漂移的调整量(年化): 牛+1%, 震荡0%, 熊-2%
+    driftAdj: [0.01, 0, -0.02],
   };
 
   const stocks = stockConfigs.map((s, i) => {
@@ -5290,7 +5290,7 @@ function runMonteCarlo() {
     [0.15, 0.72, 0.13],
     [0.08, 0.25, 0.67]
   ];
-  const mcRegimeDriftAdj = [0.03, 0, -0.05]; // 体制漂移调整(年化)
+  const mcRegimeDriftAdj = [0.01, 0, -0.02]; // 体制漂移调整(年化)
 
   // 各ETF配置
   const totalAlloc = stockConfigs.reduce((a, s) => a + s.allocation, 0);
@@ -5859,7 +5859,7 @@ function renderSummary() {
           <tr>
             <td style="text-align:left;font-weight:700;color:#22c55e;">🟢 牛市</td>
             <td style="text-align:center;font-family:var(--font-mono);color:#22c55e;">${bullPct}%</td>
-            <td style="text-align:right;font-family:var(--font-mono);">+3%/年</td>
+            <td style="text-align:right;font-family:var(--font-mono);">+1%/年</td>
             <td style="text-align:left;color:var(--text-secondary);font-size:13px;">经济扩张 · 成长股领涨</td>
           </tr>
           <tr>
@@ -5871,7 +5871,7 @@ function renderSummary() {
           <tr>
             <td style="text-align:left;font-weight:700;color:#ef4444;">🔴 熊市</td>
             <td style="text-align:center;font-family:var(--font-mono);color:#ef4444;">${bearPct}%</td>
-            <td style="text-align:right;font-family:var(--font-mono);">-5%/年</td>
+            <td style="text-align:right;font-family:var(--font-mono);">-2%/年</td>
             <td style="text-align:left;color:var(--text-secondary);font-size:13px;">经济收缩 · 全线下跌</td>
           </tr>
         </tbody>
