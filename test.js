@@ -258,9 +258,9 @@ const stockConfigs = [
     ticker: 'XQQI', name: 'NEOS Nasdaq-100 High Income ETF',
     divPerShare: 0.82, divFreq: 'monthly',
     erosionRate: 0, allocation: 25,
-    sustainableYield: 0.117,      // 现价口径名义分红率（含ROC）
-    rocRatio: 0.10,                // 19a-1：纳指备兑，ROC 较低
-    expectedPriceReturn: 0.0082,  // NAV 历史 CAGR +0.82%
+    sustainableYield: 0.117,
+    rocRatio: 0.10,
+    expectedPriceReturn: 0.008,
     annualVol: 0.15,
     color: '#3b82f6', colorClass: 'c-xqqi'
   },
@@ -268,19 +268,19 @@ const stockConfigs = [
     ticker: 'NVDY', name: 'YieldMax NVDA Option Income ETF',
     divPerShare: 0.10, divFreq: 'weekly',
     erosionRate: 12, allocation: 20,
-    sustainableYield: 0.535,      // 现价口径名义分红率（含ROC）
-    rocRatio: 0.93,                // 19a-1 实测：约 93% 为 ROC
-    expectedPriceReturn: -0.122,  // NAV 历史 CAGR -12.20%
-    annualVol: 0.45,              // 单股 NVDA 备兑，波动大
+    sustainableYield: 0.535,
+    rocRatio: 0.93,
+    expectedPriceReturn: -0.13,
+    annualVol: 0.45,
     color: '#22c55e', colorClass: 'c-nvdy'
   },
   {
     ticker: 'AMZY', name: 'YieldMax AMZN Option Income ETF',
     divPerShare: 0.07, divFreq: 'weekly',
     erosionRate: 18, allocation: 20,
-    sustainableYield: 0.516,      // 现价口径名义分红率（含ROC）
-    rocRatio: 0.80,                // 19a-1 多次实测：60~96%，取长期均值
-    expectedPriceReturn: -0.179,  // NAV 历史 CAGR -17.90%
+    sustainableYield: 0.516,
+    rocRatio: 0.80,
+    expectedPriceReturn: -0.18,
     annualVol: 0.35,
     color: '#f59e0b', colorClass: 'c-amzy'
   },
@@ -288,9 +288,9 @@ const stockConfigs = [
     ticker: 'QDTE', name: 'Roundhill 0DTE Covered Call ETF',
     divPerShare: 0.20, divFreq: 'weekly',
     erosionRate: 0, allocation: 15,
-    sustainableYield: 0.442,      // 现价口径名义分红率（含ROC）
-    rocRatio: 0.80,                // 19a-1 实测波动 14~80%，保守用 80%
-    expectedPriceReturn: 0.075,   // NAV 历史 CAGR +7.50%
+    sustainableYield: 0.442,
+    rocRatio: 0.80,
+    expectedPriceReturn: -0.18,
     annualVol: 0.20,
     color: '#8b5cf6', colorClass: 'c-qdte'
   },
@@ -298,10 +298,10 @@ const stockConfigs = [
     ticker: 'SCHG', name: 'Schwab US Large-Cap Growth ETF',
     divPerShare: 0.18, divFreq: 'quarterly',
     erosionRate: 0, allocation: 25,
-    sustainableYield: 0.005,      // 现价口径名义分红率（无 covered call，几乎无 ROC）
-    rocRatio: 0.0,                // 传统成长股 ETF，无 ROC
-    expectedPriceReturn: 0.13,    // 历史 CAGR +13%（纳斯达克100成长股长期均值）
-    annualVol: 0.20,              // 单股大盘成长 ETF，年化波动约 20%
+    sustainableYield: 0.005,
+    rocRatio: 0.0,
+    expectedPriceReturn: 0.08,
+    annualVol: 0.20,
     color: '#10b981', colorClass: 'c-schg'
   }
 ];
